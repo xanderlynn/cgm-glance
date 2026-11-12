@@ -1,6 +1,22 @@
+# Build output
+src-tauri/target/
+src-tauri/gen/
 target/
 node_modules/
 dist/
+
+# Never commit credentials or local config
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+config.json
+config.demo.json
+secrets*.json
+
+# OS clutter
 .DS_Store
+Thumbs.db
 *.log
-.env*

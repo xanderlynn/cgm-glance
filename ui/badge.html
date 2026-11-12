@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CGM Glance badge</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    html, body { background: transparent !important; overflow: hidden; height: 100%; }
+    #root { padding: 8px; display: flex; flex-direction: column; gap: 8px; height: 100%; user-select: none; -webkit-user-select: none; }
+    #root.drag { cursor: grab; }
+    /* Children ignore the mouse so drags start on #root, the drag region. */
+    #root > * { pointer-events: none; }
+    .b { --k: 1; position: relative; color: #fff; box-shadow: 0 3px 8px rgb(0 0 0 / .35); flex: none; }
+    .b.demo { outline: 2px dashed var(--demo); outline-offset: -2px; }
+    .b .n { font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .b .t { font-size: calc(11px * var(--k)); opacity: .9; }
+
+    .dot { width: calc(44px * var(--k)); height: calc(44px * var(--k)); border-radius: 50%; background: var(--c); display: grid; place-items: center; font-size: calc(22px * var(--k)); font-weight: 700; }
+    .number, .arrow { height: calc(68px * var(--k)); border-radius: calc(14px * var(--k)); background: var(--c); display: grid; place-content: center; text-align: center; gap: 3px; }
+    .number { width: calc(68px * var(--k)); }
+    .arrow { width: calc(108px * var(--k)); }
+    .number .n { font-size: calc(26px * var(--k)); }
+    .arrow .n { font-size: calc(28px * var(--k)); }
+    .b.st-urgent_low { box-shadow: inset 0 0 0 3px #fff, 0 3px 8px rgb(0 0 0 / .35); }
+
+    .age { width: calc(190px * var(--k)); height: calc(48px * var(--k)); border-radius: 999px; background: #111821e6; display: flex; align-items: center; gap: 8px; padding: 0 calc(16px * var(--k)); }
+    .age .d { width: calc(12px * var(--k)); height: calc(12px * var(--k)); border-radius: 50%; background: var(--c); flex: none; }
+    .age .n { font-size: calc(21px * var(--k)); }
+    .age .t { margin-left: auto; color: #a9b2bc; }
+
+    .card { width: calc(240px * var(--k)); height: calc(120px * var(--k)); border-radius: 14px; background: #111821eb; padding: calc(12px * var(--k)); display: flex; flex-direction: column; gap: 2px; }
+    .card .n { font-size: calc(36px * var(--k)); color: var(--c); }
+    .card .t { color: #a9b2bc; }
+    .card .spark .band { fill: rgb(255 255 255 / .07); }
+    .card .spark .line { fill: none; stroke: var(--c); stroke-width: 2; }
+    .card .spark .dot { fill: var(--c); }
+    .st-in_range.card, .st-in_range.age { --c: #4cc47e; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="badge.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+:root {
+  --bg: #fbfbfc;
+  --surface: #ffffff;
+  --fg: #1b2430;
+  --muted: #5a6573;
+  --line: #e2e6eb;
+  --accent: #3d5fd9;
+  --accent-soft: #e8edff;
+  --in_range: #2e9e5b;
+  --high: #e09a12;
+  --low: #d64545;
+  --urgent_low: #8e1b1b;
+  --stale: #8a929c;
+  --no_data: #5d646d;
+  --demo: #ffd166;
+  color-scheme: light;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161b21;
+    --surface: #1e252d;
+    --fg: #e6eaee;
+    --muted: #9aa5b1;
+    --line: #2e3742;
+    --accent: #8ea6ff;
+    --accent-soft: #26304a;
+    --in_range: #4cc47e;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); }
+button, input, select { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 7px;
+  padding: 6px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { color: var(--low); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-weight: 700; font-size: 12px; flex: none;
+}
+.demo-pill {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 1px 7px; border-radius: 999px;
+  background: var(--demo); color: #3a2a00;
+}
+/* Reading colors by status */
+.st-in_range { --c: var(--in_range); }
+.st-high { --c: var(--high); }
+.st-low { --c: var(--low); }
+.st-urgent_low { --c: var(--urgent_low); }
+.st-stale { --c: var(--stale); }
+.st-no_data, .st-sign_in, .st-error, .st-loading { --c: var(--no_data); }
+.value { color: var(--c); font-weight: 800; font-variant-numeric: tabular-nums; }

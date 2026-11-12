@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CGM Glance Settings</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { display: grid; grid-template-columns: 170px 1fr; height: 100vh; }
+    nav { border-right: 1px solid var(--line); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--surface); }
+    nav button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 6px; }
+    nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    nav .demo-pill { margin: 12px 10px 0; align-self: flex-start; }
+    main { overflow-y: auto; padding: 24px 28px 40px; }
+    h2 { margin: 0 0 16px; font-size: 20px; }
+    h3 { margin: 22px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    section { max-width: 620px; display: flex; flex-direction: column; gap: 10px; }
+    label.field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 13px; }
+    input[type=text], input[type=password], input[type=url], input[type=number], select {
+      border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; background: var(--surface); font-weight: 400;
+    }
+    input[type=number] { width: 90px; }
+    .check { display: flex; align-items: center; gap: 8px; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; flex-wrap: wrap; }
+    .seg button { border: 0; padding: 5px 12px; border-radius: 6px; }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .option { border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; cursor: pointer; background: var(--surface); }
+    .option[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+    .option p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--in_range); color: #fff; margin-left: 6px; }
+    .note { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 13px; background: var(--surface); }
+    .note.safe { border-color: color-mix(in srgb, var(--in_range) 40%, transparent); }
+    .note.warn { border-color: color-mix(in srgb, var(--high) 50%, transparent); }
+    .error { color: var(--low); font-size: 13px; }
+    .person { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .swatches { display: flex; gap: 8px; }
+    .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+    .swatch[aria-pressed="true"] { border-color: var(--fg); }
+    .big { font-size: 46px; }
+    .steps { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--accent); text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <nav id="nav"></nav>
+  <main id="main"></main>
+  <script type="module" src="settings.js"></script>
+</body>
+</html>

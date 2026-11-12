@@ -1,6 +1,6 @@
 # CGM Glance: plan and execution review
 
-**Status:** proposal, no code yet. Prototypes are in [`prototypes/`](prototypes/).
+**Status:** v0.1 built (see README). This plan is kept for reference. Prototypes are in [`prototypes/`](prototypes/).
 
 ## 1. Goal
 
