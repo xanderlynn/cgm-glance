@@ -101,7 +101,40 @@ Security rules:
 - **Multiple people:** one tray icon per person (each can be turned off), or a single
   icon showing a chosen primary person. Popup and widget always list everyone.
 
-## 6. Milestones
+## 6. Desktop badge (optional)
+
+A small movable icon on the desktop, turned on or off in **Settings → Desktop badge**
+(off by default). See `prototypes/04-desktop-badge.svg`. It replaces the separate
+"floating widget" idea: the card layouts are now just badge styles.
+
+| Setting | Options |
+|---|---|
+| Show desktop badge | On / off |
+| People | Pick who gets a badge; one badge each or one combined |
+| Style | Color only (with trend arrow as a shape cue) · Color + number · + trend arrow · + reading age · Mini card with 3 h trend |
+| Size | S / M / L |
+| Layer | Always on top · Normal · Behind windows (on the desktop) |
+| Position | Free (drag anywhere) · Snap to an edge · Corner; per-screen |
+| Lock position | Stops accidental drags |
+| Clicks pass through | Badge can't be clicked; mouse goes to whatever is under it |
+| Hide during full-screen apps | For games, video, presentations |
+| Opacity | 30–100% |
+
+How it works: each badge is a tiny frameless, transparent Tauri window. Position is saved
+per screen (screen id + offset from the snapped edge), so it comes back to the same spot
+after a restart and falls back to the primary screen if a monitor is unplugged. Dragging
+within 24 px of an edge snaps to it. Stale rules match the tray (grey at 10 min, `---` at 20).
+
+Platform limits to know about:
+
+- **Windows:** all options work. "Behind windows" badges are hidden by Win+D / Show desktop
+  like other windows; they reappear when you click back to the desktop.
+- **macOS:** all options work. Add "Show on all Spaces" so the badge follows desktop switches.
+- **Linux X11:** all options work. **Linux Wayland (default on modern GNOME/KDE):** apps can't
+  place their own windows or force always-on-top, so position and layer are up to the
+  compositor. Settings show a note there; KDE window rules can pin it manually.
+
+## 7. Milestones
 
 | # | Deliverable | Done when |
 |---|---|---|
@@ -109,11 +142,11 @@ Security rules:
 | M1 | Tauri skeleton, tray icon renderer, fake data source | Icon legible at 100/125/150% on Windows; title works on macOS and KDE |
 | M2 | Dexcom Share + Nightscout clients | Unit tests against recorded (scrubbed) responses; live test with a real account |
 | M3 | Add-person wizard + keychain storage | Secret never appears in config, logs or webview (tested) |
-| M4 | Tray popup + floating widget | Matches prototypes; widget position remembered |
+| M4 | Tray popup + desktop badge + settings pane | Matches prototypes; badge position, layer and style remembered |
 | M5 | CI builds and releases for 3 OSes | Installers attached to a GitHub Release |
 | M6 | Hardening: autostart, notifications, signed updater, accessibility | Checklist in section 7 passes |
 
-## 7. Execution review: risks and how each is handled
+## 8. Execution review: risks and how each is handled
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -126,7 +159,7 @@ Security rules:
 | Unsigned builds | SmartScreen / Gatekeeper warnings | Decide on signing (Apple Developer $99/yr; Windows cert or Azure Trusted Signing). Unsigned is fine for personal use |
 | Medical/legal perception | Misuse | "Not a medical device" in wizard, About and README; no dosing advice anywhere |
 
-## 8. Decisions needed before M1
+## 9. Decisions needed before M1
 
 1. Data source in practice: Dexcom Share, Nightscout, or both?
 2. Units: mg/dL, mmol/L, or per person?

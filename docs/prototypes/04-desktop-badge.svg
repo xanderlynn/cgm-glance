@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif">
+  <defs>
+    <linearGradient id="wall4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B5F7E"/><stop offset="1" stop-color="#1A2A3A"/>
+    </linearGradient>
+    <filter id="sh4" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect width="1200" height="900" fill="#F4F6F8"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#1B2430">4 · Desktop badge (optional, set in Settings)</text>
+  <text x="40" y="80" font-size="15" fill="#5A6573">A small movable icon on the desktop. Drag it, snap it to an edge or corner, lock it, and pick how much it shows.</text>
+
+  <!-- Desktop mock -->
+  <rect x="40" y="100" width="600" height="360" rx="10" fill="url(#wall4)"/>
+  <!-- a regular app window -->
+  <g transform="translate(150,150)">
+    <rect width="300" height="200" rx="8" fill="#E9EDF1" opacity="0.95"/>
+    <rect width="300" height="28" rx="8" fill="#D3D9DF"/>
+    <text x="12" y="19" font-size="12" fill="#3A4552">Some other app</text>
+    <rect x="16" y="46" width="220" height="10" rx="5" fill="#C3CBD3"/>
+    <rect x="16" y="66" width="180" height="10" rx="5" fill="#C3CBD3"/>
+  </g>
+  <!-- right edge snap guide -->
+  <line x1="632" y1="110" x2="632" y2="414" stroke="#FFD166" stroke-width="2" stroke-dasharray="5 5"/>
+  <text x="624" y="128" font-size="11" fill="#FFD166" text-anchor="end">snaps to edge</text>
+  <!-- snapped badges right edge -->
+  <g transform="translate(560,150)" filter="url(#sh4)">
+    <rect width="64" height="64" rx="14" fill="#2E9E5B"/>
+    <text x="32" y="38" font-size="24" font-weight="800" fill="#fff" text-anchor="middle">142</text>
+    <text x="32" y="55" font-size="11" fill="#E6F6EC" text-anchor="middle">AL →</text>
+  </g>
+  <g transform="translate(560,222)" filter="url(#sh4)">
+    <rect width="64" height="64" rx="14" fill="#E09A12"/>
+    <text x="32" y="38" font-size="24" font-weight="800" fill="#fff" text-anchor="middle">212</text>
+    <text x="32" y="55" font-size="11" fill="#FFF3DC" text-anchor="middle">MJ ↗</text>
+  </g>
+  <!-- pinned color-only dot top-left, on top of window -->
+  <g transform="translate(70,130)" filter="url(#sh4)">
+    <circle cx="20" cy="20" r="20" fill="#2E9E5B"/>
+    <path d="M12 20 h16 m-6 -6 l6 6 l-6 6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(100,124)"><circle cx="8" cy="8" r="8" fill="#fff"/><path d="M5 4 h6 l-1 4 h-4 z M8 8 v5" stroke="#1B2430" stroke-width="1.6" fill="#1B2430"/></g>
+  <text x="70" y="190" font-size="11" fill="#fff">locked in place</text>
+  <!-- free badge, behind windows -->
+  <g transform="translate(150,362)" opacity="0.92">
+    <rect width="150" height="40" rx="20" fill="#111821" fill-opacity="0.85"/>
+    <circle cx="20" cy="20" r="7" fill="#2E9E5B"/>
+    <text x="34" y="27" font-size="18" font-weight="800" fill="#fff">142 →</text>
+    <text x="100" y="26" font-size="11" fill="#A9B2BC">2 min</text>
+  </g>
+  <text x="312" y="387" font-size="11" fill="#fff">free position · "behind windows" layer</text>
+  <rect x="40" y="412" width="600" height="48" rx="0" fill="#202020" opacity="0.96"/>
+  <text x="620" y="441" font-size="12" fill="#fff" text-anchor="end">9:41 AM</text>
+
+  <!-- Style gallery -->
+  <text x="40" y="500" font-size="15" font-weight="700" fill="#1B2430">Display styles (choose one per badge)</text>
+  <g transform="translate(40,516)">
+    <g>
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <circle cx="95" cy="52" r="24" fill="#2E9E5B"/>
+      <path d="M85 52 h20 m-7 -7 l7 7 l-7 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">Color only</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">arrow kept as shape cue</text>
+    </g>
+    <g transform="translate(205,0)">
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <rect x="67" y="24" width="56" height="56" rx="12" fill="#2E9E5B"/>
+      <text x="95" y="60" font-size="22" font-weight="800" fill="#fff" text-anchor="middle">142</text>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">Color + number</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">same as the tray icon</text>
+    </g>
+    <g transform="translate(410,0)">
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <rect x="55" y="24" width="80" height="56" rx="12" fill="#2E9E5B"/>
+      <text x="82" y="60" font-size="22" font-weight="800" fill="#fff" text-anchor="middle">142</text>
+      <text x="118" y="60" font-size="20" fill="#fff" text-anchor="middle">→</text>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">+ trend arrow</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">and initials if several people</text>
+    </g>
+  </g>
+  <g transform="translate(40,672)">
+    <g>
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <rect x="25" y="30" width="140" height="44" rx="22" fill="#111821"/>
+      <circle cx="46" cy="52" r="7" fill="#2E9E5B"/>
+      <text x="60" y="59" font-size="17" font-weight="800" fill="#fff">142 →</text>
+      <text x="124" y="58" font-size="11" fill="#A9B2BC">2m</text>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">+ reading age</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">pill, reads well on any wallpaper</text>
+    </g>
+    <g transform="translate(205,0)">
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <rect x="35" y="14" width="120" height="70" rx="10" fill="#111821"/>
+      <text x="47" y="44" font-size="22" font-weight="800" fill="#4CC47E">142</text>
+      <text x="96" y="43" font-size="16" fill="#fff">→</text>
+      <polyline fill="none" stroke="#4CC47E" stroke-width="2" points="47,70 63,71 79,67 95,62 111,58 127,57 143,59"/>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">Mini card</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">with 3 h trend line</text>
+    </g>
+    <g transform="translate(410,0)">
+      <rect width="190" height="140" rx="10" fill="#fff" stroke="#DDE2E8"/>
+      <rect x="70" y="14" width="50" height="34" rx="8" fill="#2E9E5B"/><text x="95" y="37" font-size="16" font-weight="800" fill="#fff" text-anchor="middle">142</text>
+      <rect x="70" y="52" width="50" height="34" rx="8" fill="#8A929C"/><text x="95" y="75" font-size="16" font-weight="800" fill="#fff" text-anchor="middle">---</text>
+      <text x="95" y="104" font-size="13" font-weight="700" fill="#1B2430" text-anchor="middle">Stale rules still apply</text>
+      <text x="95" y="122" font-size="11" fill="#5A6573" text-anchor="middle">grey at 10 min, "---" at 20</text>
+    </g>
+  </g>
+
+  <!-- Settings window -->
+  <g transform="translate(670,100)">
+    <rect width="490" height="770" rx="12" fill="#fff" stroke="#DDE2E8"/>
+    <rect width="490" height="44" rx="12" fill="#F7F9FB"/>
+    <rect y="32" width="490" height="12" fill="#F7F9FB"/>
+    <line x1="0" y1="44" x2="490" y2="44" stroke="#E4E7EB"/>
+    <text x="18" y="28" font-size="14" font-weight="700" fill="#1B2430">CGM Glance · Settings</text>
+    <!-- sidebar -->
+    <rect x="0" y="44" width="130" height="726" fill="#F7F9FB"/>
+    <line x1="130" y1="44" x2="130" y2="770" stroke="#E4E7EB"/>
+    <g font-size="13" fill="#3A4552">
+      <text x="18" y="80">General</text>
+      <text x="18" y="112">People</text>
+      <text x="18" y="144">Tray icon</text>
+      <rect x="8" y="160" width="114" height="30" rx="6" fill="#E3E9FF"/>
+      <text x="18" y="180" font-weight="700" fill="#2F4BC9">Desktop badge</text>
+      <text x="18" y="216">Alerts</text>
+      <text x="18" y="248">About</text>
+    </g>
+    <!-- content -->
+    <g transform="translate(150,0)">
+      <text x="0" y="80" font-size="17" font-weight="700" fill="#1B2430">Desktop badge</text>
+      <!-- master toggle -->
+      <text x="0" y="114" font-size="13.5" font-weight="600" fill="#1B2430">Show desktop badge</text>
+      <rect x="282" y="100" width="40" height="22" rx="11" fill="#4C6FFF"/><circle cx="311" cy="111" r="8" fill="#fff"/>
+      <line x1="0" y1="134" x2="322" y2="134" stroke="#EEF0F3"/>
+
+      <text x="0" y="160" font-size="12" font-weight="600" fill="#5A6573">PEOPLE</text>
+      <g font-size="13" fill="#1B2430">
+        <rect x="0" y="170" width="16" height="16" rx="4" fill="#4C6FFF"/><path d="M4 178 l3 3 l6 -6" stroke="#fff" stroke-width="2" fill="none"/><text x="24" y="183">Alex</text>
+        <rect x="80" y="170" width="16" height="16" rx="4" fill="#4C6FFF"/><path d="M84 178 l3 3 l6 -6" stroke="#fff" stroke-width="2" fill="none"/><text x="104" y="183">Mia</text>
+        <rect x="160" y="170" width="16" height="16" rx="4" fill="#fff" stroke="#C9D0D8"/><text x="184" y="183">Sam</text>
+      </g>
+      <rect x="0" y="198" width="322" height="30" rx="6" fill="#fff" stroke="#C9D0D8"/>
+      <rect x="2" y="200" width="160" height="26" rx="5" fill="#4C6FFF"/><text x="82" y="218" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">One badge each</text>
+      <text x="242" y="218" font-size="12" fill="#3A4552" text-anchor="middle">Combined</text>
+
+      <text x="0" y="258" font-size="12" font-weight="600" fill="#5A6573">STYLE</text>
+      <g transform="translate(0,266)">
+        <rect width="60" height="54" rx="8" fill="#fff" stroke="#C9D0D8"/><circle cx="30" cy="22" r="10" fill="#2E9E5B"/><text x="30" y="46" font-size="9.5" fill="#3A4552" text-anchor="middle">Color</text>
+        <rect x="66" width="60" height="54" rx="8" fill="#EEF2FF" stroke="#4C6FFF" stroke-width="2"/><rect x="80" y="8" width="32" height="26" rx="6" fill="#2E9E5B"/><text x="96" y="26" font-size="11" font-weight="800" fill="#fff" text-anchor="middle">142</text><text x="96" y="46" font-size="9.5" fill="#2F4BC9" text-anchor="middle">+ Number</text>
+        <rect x="132" width="60" height="54" rx="8" fill="#fff" stroke="#C9D0D8"/><rect x="140" y="8" width="44" height="26" rx="6" fill="#2E9E5B"/><text x="162" y="26" font-size="11" font-weight="800" fill="#fff" text-anchor="middle">142→</text><text x="162" y="46" font-size="9.5" fill="#3A4552" text-anchor="middle">+ Arrow</text>
+        <rect x="198" width="60" height="54" rx="8" fill="#fff" stroke="#C9D0D8"/><rect x="204" y="12" width="48" height="18" rx="9" fill="#111821"/><text x="228" y="25" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">142→ 2m</text><text x="228" y="46" font-size="9.5" fill="#3A4552" text-anchor="middle">+ Age</text>
+        <rect x="264" width="58" height="54" rx="8" fill="#fff" stroke="#C9D0D8"/><rect x="272" y="8" width="42" height="26" rx="5" fill="#111821"/><polyline fill="none" stroke="#4CC47E" stroke-width="1.5" points="276,28 284,28 292,24 300,20 310,19"/><text x="293" y="46" font-size="9.5" fill="#3A4552" text-anchor="middle">Card</text>
+      </g>
+
+      <text x="0" y="350" font-size="12" font-weight="600" fill="#5A6573">SIZE</text>
+      <rect x="0" y="358" width="150" height="28" rx="6" fill="#fff" stroke="#C9D0D8"/>
+      <text x="25" y="377" font-size="12" fill="#3A4552" text-anchor="middle">S</text>
+      <rect x="52" y="360" width="46" height="24" rx="5" fill="#4C6FFF"/><text x="75" y="377" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">M</text>
+      <text x="125" y="377" font-size="12" fill="#3A4552" text-anchor="middle">L</text>
+
+      <text x="0" y="416" font-size="12" font-weight="600" fill="#5A6573">LAYER</text>
+      <g font-size="13" fill="#1B2430">
+        <circle cx="8" cy="436" r="7" fill="#fff" stroke="#4C6FFF" stroke-width="2"/><circle cx="8" cy="436" r="3.5" fill="#4C6FFF"/><text x="22" y="441">Always on top</text>
+        <circle cx="8" cy="460" r="7" fill="#fff" stroke="#8A929C" stroke-width="2"/><text x="22" y="465">Normal (other windows can cover it)</text>
+        <circle cx="8" cy="484" r="7" fill="#fff" stroke="#8A929C" stroke-width="2"/><text x="22" y="489">Behind windows, on the desktop</text>
+      </g>
+
+      <text x="0" y="522" font-size="12" font-weight="600" fill="#5A6573">POSITION</text>
+      <rect x="0" y="530" width="210" height="28" rx="6" fill="#fff" stroke="#C9D0D8"/>
+      <text x="35" y="549" font-size="12" fill="#3A4552" text-anchor="middle">Free</text>
+      <rect x="72" y="532" width="66" height="24" rx="5" fill="#4C6FFF"/><text x="105" y="549" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">Edge</text>
+      <text x="175" y="549" font-size="12" fill="#3A4552" text-anchor="middle">Corner</text>
+      <!-- screen picker -->
+      <g transform="translate(232,522)">
+        <rect width="90" height="56" rx="4" fill="#F2F4F7" stroke="#C9D0D8"/>
+        <rect x="82" y="8" width="6" height="40" rx="2" fill="#4C6FFF"/>
+        <rect x="2" y="8" width="6" height="40" rx="2" fill="#D9DEE5"/>
+        <rect x="14" y="2" width="62" height="5" rx="2" fill="#D9DEE5"/>
+        <rect x="14" y="49" width="62" height="5" rx="2" fill="#D9DEE5"/>
+        <text x="45" y="70" font-size="10" fill="#5A6573" text-anchor="middle">Right edge</text>
+      </g>
+      <text x="0" y="582" font-size="12" fill="#5A6573">Screen: Primary (2560×1440)  ▾</text>
+
+      <line x1="0" y1="604" x2="322" y2="604" stroke="#EEF0F3"/>
+      <g font-size="13.5" fill="#1B2430">
+        <text x="0" y="632">Lock position</text>
+        <rect x="282" y="618" width="40" height="22" rx="11" fill="#4C6FFF"/><circle cx="311" cy="629" r="8" fill="#fff"/>
+        <text x="0" y="666">Clicks pass through</text>
+        <rect x="282" y="652" width="40" height="22" rx="11" fill="#C9D0D8"/><circle cx="293" cy="663" r="8" fill="#fff"/>
+        <text x="0" y="700">Hide during full-screen apps</text>
+        <rect x="282" y="686" width="40" height="22" rx="11" fill="#4C6FFF"/><circle cx="311" cy="697" r="8" fill="#fff"/>
+        <text x="0" y="736">Opacity</text>
+        <rect x="90" y="729" width="190" height="6" rx="3" fill="#D9DEE5"/><rect x="90" y="729" width="160" height="6" rx="3" fill="#4C6FFF"/><circle cx="250" cy="732" r="8" fill="#fff" stroke="#4C6FFF" stroke-width="2"/>
+        <text x="322" y="737" font-size="12" fill="#5A6573" text-anchor="end">85%</text>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -13,3 +13,4 @@ Dexcom glucose reading for one or more people with T1D, with an optional floatin
 ![Tray and menu bar](docs/prototypes/01-tray.svg)
 ![Popup and widget](docs/prototypes/02-popup-and-widget.svg)
 ![Add a person](docs/prototypes/03-add-person.svg)
+![Desktop badge and settings](docs/prototypes/04-desktop-badge.svg)
