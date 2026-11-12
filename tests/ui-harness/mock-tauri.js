@@ -20,6 +20,10 @@
         { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true } },
         { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true } },
       ],
+      high: [
+        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true } },
+        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true } },
+      ],
     },
     demo_fast: true,
     autostart: false,
@@ -87,10 +91,12 @@
   function alarmFor(p, last, fresh, direction) {
     const a = state.settings.alarms;
     if (!a || !a.enabled || a.off_for.includes(p.id) || !fresh) return null;
-    const hit = a.low.filter((ph) => ph.enabled && last.mg <= ph.mgdl && (!ph.trend_only || direction < 0)).sort((x, y) => x.mgdl - y.mgdl)[0];
+    const low = a.low.filter((ph) => ph.enabled && last.mg <= ph.mgdl && (!ph.trend_only || direction < 0)).sort((x, y) => x.mgdl - y.mgdl)[0];
+    const high = (a.high || []).filter((ph) => ph.enabled && last.mg >= ph.mgdl && (!ph.trend_only || direction > 0)).sort((x, y) => y.mgdl - x.mgdl)[0];
+    const hit = low || high;
     if (!hit) return null;
     const acked = (state.acked || {})[p.id] === hit.mgdl;
-    return { kind: "low", threshold: fmt(hit.mgdl, p.units), flash: !acked && hit.actions.flash, acked, _mgdl: hit.mgdl };
+    return { kind: low ? "low" : "high", threshold: fmt(hit.mgdl, p.units), flash: !acked && hit.actions.flash, acked, _mgdl: hit.mgdl };
   }
   const snapshot = () => {
     const now = Date.now();
