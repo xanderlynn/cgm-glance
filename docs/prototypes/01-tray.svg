@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" width="1200" height="860" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B4A6F"/><stop offset="1" stop-color="#16263A"/>
+    </linearGradient>
+    <g id="arrowR"><path d="M0 0 h7 m-3 -3 l3 3 l-3 3" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+  </defs>
+  <rect width="1200" height="860" fill="#F4F6F8"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#1B2430">1 · Tray and menu bar</text>
+  <text x="40" y="80" font-size="15" fill="#5A6573">How the reading appears on each OS. Colors: green in range, amber high, red low, dark red urgent low, grey stale.</text>
+
+  <!-- Windows -->
+  <text x="40" y="128" font-size="15" font-weight="700" fill="#1B2430">Windows 11 — number drawn into the icon, details in the tooltip</text>
+  <rect x="40" y="140" width="1120" height="190" rx="10" fill="url(#wall)"/>
+  <!-- tooltip -->
+  <g transform="translate(700,170)">
+    <rect width="300" height="70" rx="6" fill="#2C2C2C" stroke="#444"/>
+    <text x="14" y="26" font-size="14" fill="#fff" font-weight="600">Alex  142 mg/dL  →  +2</text>
+    <text x="14" y="50" font-size="13" fill="#C9CDD2">2 min ago · Mia 88 ↘ · 4 min ago</text>
+  </g>
+  <rect x="40" y="282" width="1120" height="48" fill="#202020" opacity="0.96"/>
+  <g transform="translate(560,292)" fill="#fff">
+    <rect x="0" y="4" width="20" height="20" rx="4" fill="#0067C0"/>
+    <rect x="32" y="4" width="20" height="20" rx="4" fill="#3A3A3A"/>
+    <rect x="64" y="4" width="20" height="20" rx="4" fill="#3A3A3A"/>
+  </g>
+  <text x="836" y="312" font-size="14" fill="#fff">˄</text>
+  <!-- our icons -->
+  <g transform="translate(858,294)">
+    <rect width="24" height="24" rx="4" fill="#2E9E5B"/>
+    <text x="12" y="17" font-size="12" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing="-0.6">142</text>
+    <rect x="8" y="1" width="8" height="2" rx="1" fill="#fff" opacity="0.9"/>
+  </g>
+  <g transform="translate(890,294)">
+    <rect width="24" height="24" rx="4" fill="#2E9E5B"/>
+    <text x="12" y="17" font-size="12" font-weight="800" fill="#fff" text-anchor="middle">88</text>
+    <path d="M17 2 l4 4" stroke="#fff" stroke-width="1.6"/>
+  </g>
+  <text x="930" y="312" font-size="13" fill="#fff">⌂  ◖)</text>
+  <text x="1150" y="303" font-size="12" fill="#fff" text-anchor="end">9:41 AM</text>
+  <text x="1150" y="320" font-size="12" fill="#fff" text-anchor="end">11/11/2026</text>
+  <path d="M870 282 v-20" stroke="#FFD166" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <text x="878" y="268" font-size="12" fill="#FFD166">one icon per person (Alex, Mia)</text>
+
+  <!-- macOS -->
+  <text x="40" y="378" font-size="15" font-weight="700" fill="#1B2430">macOS — text next to a colored dot in the menu bar</text>
+  <rect x="40" y="390" width="1120" height="34" rx="8" fill="#EDEDED" stroke="#D5D5D5"/>
+  <text x="90" y="412" font-size="14" fill="#111" font-weight="600">Finder   File   Edit   View   Go   Window   Help</text>
+  <g transform="translate(760,398)">
+    <rect x="-8" y="-2" width="210" height="22" rx="5" fill="#D9D9D9"/>
+    <circle cx="4" cy="9" r="5" fill="#2E9E5B"/>
+    <text x="14" y="14" font-size="14" fill="#111" font-weight="600">A 142 →</text>
+    <text x="80" y="14" font-size="14" fill="#999">·</text>
+    <circle cx="96" cy="9" r="5" fill="#2E9E5B"/>
+    <text x="106" y="14" font-size="14" fill="#111" font-weight="600">M 88 ↘</text>
+  </g>
+  <text x="1005" y="412" font-size="13" fill="#111">⌁  ◐   Wed 11 Nov  9:41</text>
+
+  <!-- Linux -->
+  <text x="40" y="470" font-size="15" font-weight="700" fill="#1B2430">Linux (KDE / XFCE / GNOME + AppIndicator) — icon plus label</text>
+  <rect x="40" y="482" width="1120" height="36" rx="0" fill="#1E2229"/>
+  <text x="60" y="505" font-size="13" fill="#C9CDD2">Activities</text>
+  <g transform="translate(840,488)">
+    <rect width="22" height="22" rx="4" fill="#2E9E5B"/>
+    <path d="M6 11 h10 m-4 -4 l4 4 l-4 4" stroke="#fff" stroke-width="1.8" fill="none"/>
+    <text x="30" y="16" font-size="14" fill="#fff" font-weight="600">142  ·  88 ↘</text>
+  </g>
+  <text x="1140" y="505" font-size="13" fill="#C9CDD2" text-anchor="end">9:41</text>
+
+  <!-- states -->
+  <text x="40" y="572" font-size="15" font-weight="700" fill="#1B2430">Icon states (shown at 4× zoom, with the real 24 px size beside each)</text>
+  <g font-weight="800" text-anchor="middle">
+    <!-- tile helper: 96px icon -->
+    <g transform="translate(40,590)">
+      <rect width="96" height="96" rx="16" fill="#2E9E5B"/><text x="48" y="66" font-size="44" fill="#fff" letter-spacing="-2">142</text>
+      <rect x="32" y="6" width="32" height="6" rx="3" fill="#fff"/>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#2E9E5B"/><text x="116" y="89" font-size="12" fill="#fff" letter-spacing="-0.6">142</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">In range</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">flat bar = steady</text>
+    </g>
+    <g transform="translate(200,590)">
+      <rect width="96" height="96" rx="16" fill="#E09A12"/><text x="48" y="66" font-size="44" fill="#fff" letter-spacing="-2">245</text>
+      <path d="M48 4 l-8 8 h16 z" fill="#fff"/>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#E09A12"/><text x="116" y="89" font-size="12" fill="#fff" letter-spacing="-0.6">245</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">High, rising</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">notch on top = up</text>
+    </g>
+    <g transform="translate(360,590)">
+      <rect width="96" height="96" rx="16" fill="#D64545"/><text x="48" y="62" font-size="44" fill="#fff">68</text>
+      <path d="M48 92 l-8 -8 h16 z" fill="#fff"/>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#D64545"/><text x="116" y="89" font-size="12" fill="#fff">68</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">Low, falling</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">notch on bottom = down</text>
+    </g>
+    <g transform="translate(520,590)">
+      <rect width="96" height="96" rx="16" fill="#8E1B1B"/><rect x="4" y="4" width="88" height="88" rx="13" fill="none" stroke="#fff" stroke-width="4"/><text x="48" y="62" font-size="44" fill="#fff">52</text>
+      <path d="M40 78 l8 8 l8 -8" stroke="#fff" stroke-width="4" fill="none"/>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#8E1B1B"/><text x="116" y="89" font-size="12" fill="#fff">52</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">Urgent low</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">white ring + chevron</text>
+    </g>
+    <g transform="translate(680,590)">
+      <rect width="96" height="96" rx="16" fill="#8A929C"/><text x="48" y="62" font-size="44" fill="#fff" letter-spacing="-2">142</text>
+      <circle cx="78" cy="78" r="14" fill="#fff"/><path d="M78 70 v8 h6" stroke="#8A929C" stroke-width="3" fill="none"/>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#8A929C"/><text x="116" y="89" font-size="12" fill="#fff" letter-spacing="-0.6">142</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">Stale 10–20 min</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">grey + clock badge</text>
+    </g>
+    <g transform="translate(840,590)">
+      <rect width="96" height="96" rx="16" fill="#5D646D"/><text x="48" y="62" font-size="44" fill="#fff">---</text>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#5D646D"/><text x="116" y="89" font-size="12" fill="#fff">--</text>
+      <text x="64" y="122" font-size="14" fill="#1B2430">No data 20+ min</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">old value hidden</text>
+    </g>
+    <g transform="translate(1000,590)">
+      <rect width="96" height="96" rx="16" fill="#5D646D"/><circle cx="48" cy="48" r="26" fill="#FFD166"/><text x="48" y="64" font-size="40" fill="#1B2430">!</text>
+      <rect x="104" y="72" width="24" height="24" rx="4" fill="#5D646D"/><circle cx="116" cy="84" r="7" fill="#FFD166"/>
+      <text x="64" y="122" font-size="14" fill="#1B2430">Sign in again</text><text x="64" y="140" font-size="12" font-weight="400" fill="#5A6573">polling paused</text>
+    </g>
+  </g>
+  <rect x="40" y="760" width="1120" height="72" rx="10" fill="#E7ECF2"/>
+  <text x="60" y="790" font-size="14" fill="#1B2430"><tspan font-weight="700">mmol/L:</tspan> the icon shows <tspan font-weight="700">7.9</tspan> or <tspan font-weight="700">10</tspan> (decimal dropped at 10+ to stay legible); the tooltip and popup always show the full value.</text>
+  <text x="60" y="814" font-size="14" fill="#1B2430"><tspan font-weight="700">Fallback mode:</tspan> users who find 3 digits too small can switch the icon to a colored dot + arrow and read the number on hover.</text>
+</svg>
