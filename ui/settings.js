@@ -4,6 +4,7 @@ const TABS = [
   ["people", "People"],
   ["tray", "Tray icon"],
   ["badge", "Desktop badge"],
+  ["alarms", "Alarms"],
   ["general", "General"],
   ["about", "About"],
 ];
@@ -120,7 +121,7 @@ function render() {
   shownKey = listKey(snap);
   const focusKey = document.activeElement?.dataset?.key;
   renderNav();
-  const views = { people: wizard ? wizardView : peopleView, tray: trayView, badge: badgeView, general: generalView, about: aboutView };
+  const views = { people: wizard ? wizardView : peopleView, tray: trayView, badge: badgeView, alarms: alarmsView, general: generalView, about: aboutView };
   main.replaceChildren(views[tab]());
   if (focusKey) main.querySelector(`[data-key="${CSS.escape(focusKey)}"]`)?.focus();
 }
@@ -545,6 +546,98 @@ function badgeView() {
     ),
     h("div", {}, h("button", { onclick: () => invoke("reset_badge_positions") }, "Reset badge positions")),
     h("p", { class: "small muted" }, "Linux on Wayland decides window position and stacking itself, so position and layer may not apply there."),
+    ),
+  );
+}
+
+// ---------- Alarms ----------
+
+const MMOL = 18.0182;
+
+function alarmsView() {
+  const a = snap.settings.alarms;
+  // Rules are shared, so numbers use mmol/L only when everyone does.
+  const mmol = snap.config_people.length > 0 && snap.config_people.every((p) => p.units === "mmol");
+  const unit = mmol ? "mmol/L" : "mg/dL";
+  const shown = (mg) => (mmol ? (mg / MMOL).toFixed(1) : String(mg));
+  const set = (fn) => save((s) => fn(s.alarms));
+  const phaseRow = (kind, ph, i) => {
+    const id = `${kind}-${i}`;
+    const edit = (fn) => set((al) => fn(al[kind][i]));
+    return h(
+      "div",
+      { class: `phase${ph.enabled ? "" : " off"}` },
+      h("input", { type: "checkbox", checked: ph.enabled, "aria-label": "Phase on", "data-key": `${id}-on`, onchange: (e) => edit((p) => (p.enabled = e.target.checked)) }),
+      h("span", {}, kind === "low" ? "At or below" : "At or above"),
+      h("input", {
+        type: "number",
+        step: mmol ? "0.1" : "1",
+        min: mmol ? 2.2 : 40,
+        max: mmol ? 22.2 : 400,
+        value: shown(ph.mgdl),
+        "aria-label": `Threshold in ${unit}`,
+        "data-key": `${id}-n`,
+        onchange: (e) => {
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n) || n <= 0) return render();
+          edit((p) => (p.mgdl = Math.round(mmol ? n * MMOL : n)));
+        },
+      }),
+      h("span", { class: "muted" }, unit),
+      check(kind === "low" ? "only when falling" : "only when rising", ph.trend_only, (v) => edit((p) => (p.trend_only = v)), `${id}-trend`),
+      h("span", { class: "grow" }),
+      h("span", { class: "muted small" }, "Then:"),
+      check("Flash", ph.actions.flash, (v) => edit((p) => (p.actions.flash = v)), `${id}-flash`),
+      h("button", { "aria-label": "Remove this phase", title: "Remove this phase", onclick: () => set((al) => al[kind].splice(i, 1)) }, "✕"),
+    );
+  };
+  const phases = (kind, title, hint) => [
+    h("h3", {}, title),
+    h("p", { class: "small muted" }, hint),
+    a[kind].length === 0 && h("p", { class: "small" }, "No phases: this alarm is off."),
+    ...a[kind].map((ph, i) => phaseRow(kind, ph, i)),
+    a[kind].length < 6 &&
+      h(
+        "div",
+        {},
+        h("button", {
+          onclick: () =>
+            set((al) => {
+              const last = al[kind].at(-1)?.mgdl;
+              const mgdl = kind === "low" ? Math.max(40, (last ?? 80) - 5) : Math.min(400, (last ?? 180) + 20);
+              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true } });
+            }),
+        }, "+ Add phase"),
+      ),
+  ];
+  return h(
+    "section",
+    {},
+    h("h2", {}, "Alarms"),
+    h(
+      "div",
+      { class: "note warn" },
+      "These alarms add to the Dexcom app's own alarms; they don't replace them. Dexcom Share data can arrive minutes late, and a computer can sleep or lose its connection.",
+    ),
+    check(h("strong", {}, "Alarms on"), a.enabled, (v) => set((al) => (al.enabled = v)), "alarms-on"),
+    h(
+      "fieldset",
+      { disabled: !a.enabled, class: "group" },
+      h("h3", {}, "People"),
+      snap.people.length === 0
+        ? h("p", { class: "small muted" }, "Add a person first.")
+        : h(
+            "div",
+            { class: "actions" },
+            snap.people.map((p) =>
+              check(p.name, !a.off_for.includes(p.id), (on) =>
+                set((al) => (al.off_for = on ? al.off_for.filter((x) => x !== p.id) : [...al.off_for, p.id])),
+                `alarm-p-${p.id}`,
+              ),
+            ),
+          ),
+      ...phases("low", "Low alarm", "Phases escalate: the lowest phase a reading is in decides what happens, and each new, lower phase alerts again. The alarm ends when the reading is 5 mg/dL above the first phase. Readings older than 10 minutes never trigger an alarm."),
+      h("p", { class: "small muted" }, "Acknowledge an alarm from the readings popup or the tray menu."),
     ),
   );
 }

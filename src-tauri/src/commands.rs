@@ -277,6 +277,7 @@ pub fn remove_person(app: AppHandle, id: String) {
         inner.config.people.retain(|p| p.id != id);
         inner.config.badge_positions.remove(&format!("badge-{id}"));
         inner.config.settings.badge.people.retain(|p| *p != id);
+        inner.config.settings.alarms.off_for.retain(|p| *p != id);
         if inner.config.settings.tray.primary.as_deref() == Some(id.as_str()) {
             inner.config.settings.tray.primary = None;
         }
@@ -289,6 +290,7 @@ pub fn remove_person(app: AppHandle, id: String) {
 #[tauri::command]
 pub fn save_settings(app: AppHandle, mut settings: Settings) -> Result<(), String> {
     settings.badge.opacity = settings.badge.opacity.clamp(0.3, 1.0);
+    settings.alarms.normalize();
     let state = app.state::<AppState>();
     let old_autostart = state.lock().config.settings.autostart;
     if settings.autostart != old_autostart {
@@ -402,4 +404,11 @@ mod tests {
         x.initials = "ABCD".into();
         assert!(validate(&x).is_err());
     }
+}
+
+/// Acknowledges one person's alarm, or everyone's when `id` is None.
+#[tauri::command]
+pub fn acknowledge_alarms(app: AppHandle, id: Option<String>) {
+    crate::alarms::acknowledge(&app, id.as_deref());
+    ui::refresh(&app);
 }

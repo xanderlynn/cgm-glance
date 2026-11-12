@@ -12,6 +12,15 @@
   const defaults = () => ({
     tray: { mode: "per_person", primary: null, icon_style: "number", show_initials: true },
     badge: { enabled: true, people: [], combined: false, style: "pill", size: "m", layer: "top", position: "free", edge: "right", corner: "top_right", lock: false, click_through: false, opacity: 1, show_initials: true },
+    alarms: {
+      enabled: true,
+      off_for: [],
+      low: [
+        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true } },
+        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true } },
+        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true } },
+      ],
+    },
     demo_fast: true,
     autostart: false,
   });
@@ -32,6 +41,7 @@
     try { return JSON.parse(localStorage.getItem(KEY)) || seed(); } catch { return seed(); }
   };
   let state = load();
+  state.settings = { ...defaults(), ...state.settings }; // older saved harness state
   if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(state));
   const persist = () => { localStorage.setItem(KEY, JSON.stringify(state)); emitSnapshot(); };
 
@@ -71,7 +81,16 @@
     return { ...base, status, value: show ? fmt(last.mg, p.units) : null, icon_text: show ? fmt(last.mg, p.units) : null, arrow, direction,
       delta: fresh ? (p.units === "mmol" ? (d >= 0 ? "+" : "") + (d / 18.0182).toFixed(1) : (d >= 0 ? "+" : "") + d) : null,
       age_min: age, message: status === "no_data" ? "No recent reading. Check the sensor and the phone it sends to." : null,
-      history: pts.map((q) => ({ t: q.t, v: toUnits(q.mg, p.units) })) };
+      history: pts.map((q) => ({ t: q.t, v: toUnits(q.mg, p.units) })), alarm: alarmFor(p, last, fresh, direction) };
+  }
+  // Simplified alarm: the most severe matching low phase, acknowledged per person.
+  function alarmFor(p, last, fresh, direction) {
+    const a = state.settings.alarms;
+    if (!a || !a.enabled || a.off_for.includes(p.id) || !fresh) return null;
+    const hit = a.low.filter((ph) => ph.enabled && last.mg <= ph.mgdl && (!ph.trend_only || direction < 0)).sort((x, y) => x.mgdl - y.mgdl)[0];
+    if (!hit) return null;
+    const acked = (state.acked || {})[p.id] === hit.mgdl;
+    return { kind: "low", threshold: fmt(hit.mgdl, p.units), flash: !acked && hit.actions.flash, acked, _mgdl: hit.mgdl };
   }
   const snapshot = () => {
     const now = Date.now();
@@ -133,7 +152,7 @@
       return p.id;
     },
     update_person: ({ id, display }) => { validate(display); apply(state.people.find((p) => p.id === id), display); persist(); },
-    remove_person: ({ id }) => { state.people = state.people.filter((p) => p.id !== id); state.settings.badge.people = state.settings.badge.people.filter((x) => x !== id); persist(); },
+    remove_person: ({ id }) => { state.people = state.people.filter((p) => p.id !== id); state.settings.badge.people = state.settings.badge.people.filter((x) => x !== id); state.settings.alarms.off_for = state.settings.alarms.off_for.filter((x) => x !== id); persist(); },
     save_settings: ({ settings }) => { settings.badge.opacity = Math.min(1, Math.max(0.3, settings.badge.opacity)); state.settings = settings; persist(); },
     reset_badge_positions: () => persist(),
     discard_drafts: () => { for (const k in drafts) delete drafts[k]; },
@@ -141,6 +160,11 @@
     open_settings: ({ tab } = {}) => { if (page === "settings" && tab) emit("open-tab", tab); },
     hide_popup: () => {},
     quit_app: () => {},
+    acknowledge_alarms: ({ id }) => {
+      state.acked ||= {};
+      for (const v of snapshot().people) if (v.alarm && (!id || v.id === id)) state.acked[v.id] = v.alarm._mgdl;
+      persist();
+    },
   };
 
   window.__TAURI__ = {

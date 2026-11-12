@@ -29,6 +29,7 @@ pub fn refresh_force(app: &AppHandle) {
 }
 
 fn push(app: &AppHandle, force: bool) {
+    crate::alarms::check(app);
     let state = app.state::<AppState>();
     let snap = state::snapshot(&state);
     // The tray icon size is part of the key so a display-scale change redraws it.
@@ -79,6 +80,39 @@ fn recycle_badges(app: &AppHandle) {
     let mut inner = state.lock();
     inner.badge_geometry.clear();
     inner.badge_flags.clear();
+}
+
+/// Blinks the tray icons of people with an unacknowledged flashing alarm. Runs only while
+/// one exists, and touches only the tray (windows animate their own flashing with CSS).
+pub fn ensure_flasher(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    {
+        let mut inner = state.lock();
+        if inner.flasher_running {
+            return;
+        }
+        inner.flasher_running = true;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            let state = app.state::<AppState>();
+            let flashing = {
+                let mut inner = state.lock();
+                let flashing = crate::alarms::any_flashing(&inner);
+                inner.flash_dim = flashing && !inner.flash_dim;
+                inner.flasher_running = flashing;
+                flashing
+            };
+            let snap = state::snapshot(&state);
+            let app2 = app.clone();
+            let _ = app.run_on_main_thread(move || update_trays(&app2, &snap));
+            if !flashing {
+                break;
+            }
+        }
+    });
 }
 
 /// Checks every 5 s so ages and stale states update between fetches.
@@ -174,6 +208,7 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
     }
 
     let size = tray_icon_size(app);
+    let dim_phase = app.state::<AppState>().lock().flash_dim;
     let use_dot = !cfg!(windows) || tray.icon_style == IconStyle::Dot;
     for (id, list) in &desired {
         // A shared icon shows whoever needs attention most (main person on ties).
@@ -205,9 +240,14 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
             Some(v) if several => format!("{} {}", v.initials, short_title(v)),
             Some(v) => short_title(v),
         };
+        // An unacknowledged alarm makes the icon blink between normal and dimmed.
+        let dim = dim_phase
+            && list
+                .iter()
+                .any(|v| v.alarm.as_ref().is_some_and(|a| a.flash));
         // Skip trays whose icon, tooltip and title are unchanged.
         let look = format!(
-            "{:?}|{:?}|{}|{}|{size}|{use_dot}|{tooltip}|{title}",
+            "{:?}|{:?}|{}|{}|{size}|{use_dot}|{dim}|{tooltip}|{title}",
             spec.status, spec.text, spec.direction, spec.demo
         );
         let existing = app.tray_by_id(id);
@@ -215,11 +255,16 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         if existing.is_some() && state.lock().tray_looks.get(id) == Some(&look) {
             continue;
         }
-        let rgba = if use_dot {
+        let mut rgba = if use_dot {
             dot_icon(&spec, size)
         } else {
             number_icon(&spec, size)
         };
+        if dim {
+            for px in rgba.chunks_exact_mut(4) {
+                px[3] /= 5;
+            }
+        }
         let image = Image::new_owned(rgba, size, size);
         if let Some(t) = existing {
             let _ = t.set_icon(Some(image));
@@ -270,6 +315,7 @@ fn build_tray(
         .item(&MenuItemBuilder::with_id("show", "Show readings").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
         .item(&MenuItemBuilder::with_id("badge", "Show / hide desktop badge").build(app)?)
+        .item(&MenuItemBuilder::with_id("ack", "Acknowledge alarms").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("quit", "Quit CGM Glance").build(app)?)
         .build()?;
@@ -308,6 +354,10 @@ fn handle_menu(app: &AppHandle, id: &str) {
                 inner.config.settings.badge.enabled = !inner.config.settings.badge.enabled;
                 state.save(&inner);
             }
+            refresh(app);
+        }
+        "ack" => {
+            crate::alarms::acknowledge(app, None);
             refresh(app);
         }
         "quit" => app.exit(0),

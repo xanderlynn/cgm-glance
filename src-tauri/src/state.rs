@@ -1,5 +1,6 @@
 //! Shared app state and the view model sent to the windows.
 
+use crate::alarms::{self, AlarmView};
 use crate::config::{self, Config, Person, Settings, SourceConfig};
 use crate::model::{self, Reading, Status, Trend};
 use crate::secrets::Secret;
@@ -48,6 +49,11 @@ pub struct Inner {
     pub tray_looks: HashMap<String, String>,
     /// When Dexcom last rejected a password in the setup wizard.
     pub last_auth_fail: Option<Instant>,
+    /// Alarms that have fired and not cleared, per person and kind.
+    pub alarms: HashMap<(String, alarms::Kind), alarms::Active>,
+    /// Flashing tray icons are drawn dimmed while this is true.
+    pub flash_dim: bool,
+    pub flasher_running: bool,
 }
 
 pub struct AppState {
@@ -127,6 +133,7 @@ pub struct PersonView {
     pub history: Vec<HistPoint>,
     pub low: f64,
     pub high: f64,
+    pub alarm: Option<AlarmView>,
 }
 
 #[derive(Serialize, Clone)]
@@ -137,7 +144,12 @@ pub struct Snapshot {
     pub config_people: Vec<Person>,
 }
 
-pub fn person_view(p: &Person, rt: Option<&Runtime>, now: i64) -> PersonView {
+pub fn person_view(
+    p: &Person,
+    rt: Option<&Runtime>,
+    alarm: Option<AlarmView>,
+    now: i64,
+) -> PersonView {
     let readings: &[Reading] = rt.map(|r| r.readings.as_slice()).unwrap_or(&[]);
     let latest = readings.last();
     let units = p.units;
@@ -214,6 +226,7 @@ pub fn person_view(p: &Person, rt: Option<&Runtime>, now: i64) -> PersonView {
             .collect(),
         low: model::to_units(p.thresholds.low, units),
         high: model::to_units(p.thresholds.high, units),
+        alarm,
     }
 }
 
@@ -226,7 +239,7 @@ pub fn snapshot(state: &AppState) -> Snapshot {
             .config
             .people
             .iter()
-            .map(|p| person_view(p, inner.runtime.get(&p.id), now))
+            .map(|p| person_view(p, inner.runtime.get(&p.id), alarms::view(&inner, p), now))
             .collect(),
         settings: inner.config.settings.clone(),
         config_people: inner.config.people.clone(),
@@ -295,7 +308,7 @@ mod tests {
             }],
             error: None,
         };
-        let v = person_view(&person(), Some(&rt), now);
+        let v = person_view(&person(), Some(&rt), None, now);
         assert_eq!(v.status, Status::NoData);
         assert!(v.value.is_none());
     }
@@ -311,7 +324,7 @@ mod tests {
             }],
             error: Some((Status::SignIn, "bad password".into())),
         };
-        let v = person_view(&person(), Some(&rt), now);
+        let v = person_view(&person(), Some(&rt), None, now);
         assert_eq!(v.status, Status::SignIn);
         assert!(v.value.is_none());
     }
@@ -334,7 +347,7 @@ mod tests {
             ],
             error: None,
         };
-        let v = person_view(&person(), Some(&rt), now);
+        let v = person_view(&person(), Some(&rt), None, now);
         assert_eq!(v.delta.as_deref(), Some("+2"));
         assert_eq!(summary_line(&v), "Alex 142 mg/dL → +2 · 2 min ago [demo]");
     }

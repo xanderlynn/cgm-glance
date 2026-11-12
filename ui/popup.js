@@ -27,9 +27,21 @@ function card(p) {
       ),
       h("div", {}, h("div", { class: "value" }, displayValue(p)), h("div", { class: "small muted sub" }, sub)),
     ),
+    p.alarm && alarmBanner(p),
     p.history.length > 0 && sparkline(p, 330, 40),
     p.message && h("div", { class: "msg" }, p.message),
     action,
+  );
+}
+
+function alarmBanner(p) {
+  const a = p.alarm;
+  const what = a.kind === "low" ? `Low alarm: at or below ${a.threshold}` : `High alarm: at or above ${a.threshold}`;
+  return h(
+    "div",
+    { class: `alarm${a.acked ? " acked" : ""}`, role: a.acked ? null : "alert" },
+    h("span", { class: "grow" }, `${what} ${p.unit_label}`, a.acked ? " · acknowledged" : ""),
+    !a.acked && h("button", { onclick: () => invoke("acknowledge_alarms", { id: p.id }) }, "Acknowledge"),
   );
 }
 

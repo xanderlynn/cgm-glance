@@ -20,6 +20,10 @@
     .b.st-no_data, .b.st-sign_in, .b.st-error, .b.st-loading { --fill: #545b64; --text: #a3acb6; }
     .b { --k: 1; position: relative; color: #fff; flex: none; }
     .b.demo { outline: 2px dashed var(--demo); outline-offset: 1px; }
+    /* Unacknowledged alarm: blink until acknowledged (popup or tray menu). */
+    .b.flash { animation: flash 1.2s steps(2, jump-none) infinite; }
+    @keyframes flash { 50% { opacity: .25; } }
+    @media (prefers-reduced-motion: reduce) { .b.flash { animation-duration: 2.4s; } }
     .b .n { font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
     .b .t { font-size: calc(11px * var(--k)); line-height: 1; white-space: nowrap; }
 
