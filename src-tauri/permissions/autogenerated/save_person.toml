@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-person"
+description = "Enables the save_person command without any pre-configured scope."
+commands.allow = ["save_person"]
+
+[[permission]]
+identifier = "deny-save-person"
+description = "Denies the save_person command without any pre-configured scope."
+commands.deny = ["save_person"]

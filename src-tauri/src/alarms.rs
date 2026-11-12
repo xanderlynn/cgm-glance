@@ -172,6 +172,9 @@ pub struct AlarmSettings {
     /// How long "Snooze" silences a person's alarms.
     pub snooze_min: u32,
     pub no_data: NoData,
+    /// Put glucose numbers in notifications. Off keeps them off the lock screen and
+    /// notification history (the alert still names the person and says low/high).
+    pub notification_values: bool,
     /// Schedules that limit what alarms may do (they can silence any alarm without
     /// `breakthrough`).
     pub quiet: Vec<QuietMode>,
@@ -194,6 +197,7 @@ impl Default for AlarmSettings {
             high_ack_min: 60,
             snooze_min: 30,
             no_data: NoData::default(),
+            notification_values: true,
             quiet: quiet::default_modes(),
         }
     }
@@ -567,6 +571,9 @@ impl Engine {
                     };
                     if let (Some(ph), Some(r)) = (phase, latest) {
                         let mut alert = alert_for(p, kind, ph, r, now);
+                        if !s.notification_values {
+                            alert.body = "Open CGM Glance to see the reading.".into();
+                        }
                         alert.repeat = repeat;
                         if !ph.breakthrough {
                             alert.actions = alert.wanted.masked(allow);
@@ -608,11 +615,15 @@ impl Engine {
             mgdl: r.mgdl,
             repeat: false,
             title: format!("No readings for {}", p.name),
-            body: format!(
-                "Nothing new for {age} min. Last: {} {}. Check the sensor and phone.",
-                model::format_value(r.mgdl, p.units),
-                p.units.label()
-            ),
+            body: if s.notification_values {
+                format!(
+                    "Nothing new for {age} min. Last: {} {}. Check the sensor and phone.",
+                    model::format_value(r.mgdl, p.units),
+                    p.units.label()
+                )
+            } else {
+                format!("Nothing new for {age} min. Check the sensor and phone.")
+            },
             actions: s.no_data.actions.clone(),
             wanted: s.no_data.actions.clone(),
         })
@@ -1138,6 +1149,37 @@ mod tests {
         );
         let highs: Vec<u16> = st.high.iter().map(|p| p.mgdl).collect();
         assert_eq!(highs, vec![260, 280, 300, 320, 340, 360]);
+    }
+
+    #[test]
+    fn notifications_can_leave_out_numbers() {
+        let mut s = s();
+        s.notification_values = false;
+        let people = vec![Person {
+            id: "a".into(),
+            name: "Mia".into(),
+            initials: "M".into(),
+            color: "#000".into(),
+            units: Units::Mgdl,
+            thresholds: Default::default(),
+            source: crate::config::SourceConfig::Demo {
+                scenario: crate::config::Scenario::Low,
+            },
+            tray_icon: true,
+        }];
+        let low = at(60, Trend::SingleDown, 0);
+        let c = Clock {
+            now: NOW,
+            weekday: 0,
+            minute: 600,
+        };
+        let got = Engine::default().tick(&s, &people, |_| Some(&low), c);
+        assert_eq!(got[0].title, "Mia is low");
+        assert!(
+            !got[0].body.chars().any(|ch| ch.is_ascii_digit()),
+            "{}",
+            got[0].body
+        );
     }
 
     #[test]

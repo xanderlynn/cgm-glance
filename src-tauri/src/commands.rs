@@ -361,7 +361,21 @@ pub fn retry_person(app: AppHandle, id: String) {
 
 #[tauri::command]
 pub fn open_settings(app: AppHandle, tab: Option<String>) {
+    // The tab goes into a URL and an event, so accept only known shapes.
+    let tab = tab.filter(|t| valid_tab(t));
     ui::open_settings(&app, tab.as_deref());
+}
+
+fn valid_tab(t: &str) -> bool {
+    const TABS: [&str; 7] = [
+        "people", "tray", "badge", "alarms", "general", "about", "add",
+    ];
+    TABS.contains(&t)
+        || t.strip_prefix("signin:").is_some_and(|id| {
+            !id.is_empty()
+                && id.len() <= 64
+                && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        })
 }
 
 #[tauri::command]
@@ -437,4 +451,82 @@ pub fn check_update(app: AppHandle) {
 #[tauri::command]
 pub fn install_update(app: AppHandle) {
     crate::updater::install(&app);
+}
+
+#[cfg(test)]
+mod acl_tests {
+    //! Each window may call only the commands its capability grants
+    //! (`capabilities/*.json`). These tests keep the UI and the grants in step.
+    use std::collections::BTreeSet;
+
+    fn granted(capability: &str) -> BTreeSet<String> {
+        let path = format!(
+            "{}/capabilities/{capability}.json",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        v["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| p.as_str()?.strip_prefix("allow-"))
+            .map(|c| c.replace('-', "_"))
+            .collect()
+    }
+
+    /// Commands a page calls, from `invoke("name"` in its script and common.js.
+    fn used(page: &str) -> BTreeSet<String> {
+        let ui = format!("{}/../ui", env!("CARGO_MANIFEST_DIR"));
+        let mut out = BTreeSet::new();
+        for file in [format!("{ui}/{page}.js"), format!("{ui}/common.js")] {
+            let src = std::fs::read_to_string(file).unwrap();
+            for part in src.split("invoke(\"").skip(1) {
+                out.insert(part.split('"').next().unwrap().to_string());
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn every_window_is_granted_what_it_uses() {
+        for page in ["badge", "popup", "settings"] {
+            let missing: Vec<_> = used(page).difference(&granted(page)).cloned().collect();
+            assert!(
+                missing.is_empty(),
+                "{page} calls ungranted commands: {missing:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn settings_tab_names_are_checked() {
+        assert!(super::valid_tab("alarms"));
+        assert!(super::valid_tab("signin:demo-6bbd3df3-65ee-4403-9df3"));
+        assert!(!super::valid_tab("signin:"));
+        assert!(!super::valid_tab("x\"><img src=x>"));
+        assert!(!super::valid_tab("signin:../../etc"));
+    }
+
+    #[test]
+    fn badges_can_only_read() {
+        assert_eq!(
+            granted("badge"),
+            BTreeSet::from(["get_snapshot".to_string()])
+        );
+    }
+
+    #[test]
+    fn only_settings_handles_sign_ins() {
+        for page in ["badge", "popup"] {
+            for c in [
+                "test_connection",
+                "save_person",
+                "update_person",
+                "remove_person",
+            ] {
+                assert!(!granted(page).contains(c), "{page} must not get {c}");
+            }
+        }
+    }
 }

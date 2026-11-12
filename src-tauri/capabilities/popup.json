@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "The readings popup: view, alarm actions, quick settings, open Settings, quit.",
+  "windows": ["popup"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-get-snapshot",
+    "allow-acknowledge-alarms",
+    "allow-snooze-alarms",
+    "allow-set-quiet",
+    "allow-retry-person",
+    "allow-save-settings",
+    "allow-install-update",
+    "allow-open-settings",
+    "allow-hide-popup",
+    "allow-quit-app"
+  ]
+}

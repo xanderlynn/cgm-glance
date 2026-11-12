@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-acknowledge-alarms"
+description = "Enables the acknowledge_alarms command without any pre-configured scope."
+commands.allow = ["acknowledge_alarms"]
+
+[[permission]]
+identifier = "deny-acknowledge-alarms"
+description = "Denies the acknowledge_alarms command without any pre-configured scope."
+commands.deny = ["acknowledge_alarms"]

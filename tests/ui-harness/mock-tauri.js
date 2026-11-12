@@ -20,6 +20,7 @@
       low_ack_min: 15,
       high_ack_min: 60,
       snooze_min: 30,
+      notification_values: true,
       no_data: { after_min: 30, actions: { flash: false, notify: true, sound: "chime" } },
       quiet: [
         { name: "Work", enabled: false, days: [0, 1, 2, 3, 4], start: 540, end: 1020, allow: { flash: true, notify: true, sound: false } },
