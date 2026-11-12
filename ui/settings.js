@@ -591,9 +591,8 @@ function alarmsView() {
       h("button", { "aria-label": "Remove this phase", title: "Remove this phase", onclick: () => set((al) => al[kind].splice(i, 1)) }, "✕"),
     );
   };
-  const phases = (kind, title, hint) => [
+  const phases = (kind, title) => [
     h("h3", {}, title),
-    h("p", { class: "small muted" }, hint),
     a[kind].length === 0 && h("p", { class: "small" }, "No phases: this alarm is off."),
     ...a[kind].map((ph, i) => phaseRow(kind, ph, i)),
     a[kind].length < 6 &&
@@ -636,7 +635,9 @@ function alarmsView() {
               ),
             ),
           ),
-      ...phases("low", "Low alarm", "Phases escalate: the lowest phase a reading is in decides what happens, and each new, lower phase alerts again. The alarm ends when the reading is 5 mg/dL above the first phase. Readings older than 10 minutes never trigger an alarm."),
+      h("p", { class: "small muted" }, "Phases escalate: the most extreme phase a reading is in decides what happens, and each new, more extreme phase alerts again. An alarm ends once the reading is 5 mg/dL back past its first phase. Readings older than 10 minutes never trigger an alarm."),
+      ...phases("low", "Low alarm"),
+      ...phases("high", "High alarm"),
       h("p", { class: "small muted" }, "Acknowledge an alarm from the readings popup or the tray menu."),
     ),
   );

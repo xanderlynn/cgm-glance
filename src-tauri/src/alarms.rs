@@ -20,15 +20,17 @@ pub const CLEAR_MARGIN: u16 = 5;
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     Low,
+    High,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 1] = [Kind::Low];
+    pub const ALL: [Kind; 2] = [Kind::Low, Kind::High];
 
     /// True when threshold `a` is more severe than `b`.
     fn more_severe(self, a: u16, b: u16) -> bool {
         match self {
             Kind::Low => a < b,
+            Kind::High => a > b,
         }
     }
 
@@ -36,12 +38,14 @@ impl Kind {
         let dir = r.trend.direction();
         match self {
             Kind::Low => r.mgdl <= p.mgdl && (!p.trend_only || dir < 0),
+            Kind::High => r.mgdl >= p.mgdl && (!p.trend_only || dir > 0),
         }
     }
 
     fn recovered(self, mgdl: u16, least_severe: u16) -> bool {
         match self {
             Kind::Low => mgdl > least_severe.saturating_add(CLEAR_MARGIN),
+            Kind::High => mgdl < least_severe.saturating_sub(CLEAR_MARGIN),
         }
     }
 }
@@ -58,7 +62,7 @@ pub struct Phase {
     pub enabled: bool,
     /// Threshold in mg/dL.
     pub mgdl: u16,
-    /// Only while the trend points toward the threshold (falling for lows).
+    /// Only while the trend points toward the threshold (falling for lows, rising for highs).
     pub trend_only: bool,
     pub actions: Actions,
 }
@@ -87,6 +91,7 @@ fn phase(mgdl: u16, trend_only: bool) -> Phase {
 pub struct AlarmSettings {
     pub enabled: bool,
     pub low: Vec<Phase>,
+    pub high: Vec<Phase>,
     /// People whose alarms are turned off. The rules are shared by everyone else.
     pub off_for: Vec<String>,
 }
@@ -96,6 +101,7 @@ impl Default for AlarmSettings {
         AlarmSettings {
             enabled: true,
             low: vec![phase(75, true), phase(70, false), phase(65, false)],
+            high: vec![phase(200, true), phase(250, false)],
             off_for: vec![],
         }
     }
@@ -105,6 +111,7 @@ impl AlarmSettings {
     pub fn phases(&self, kind: Kind) -> &[Phase] {
         match kind {
             Kind::Low => &self.low,
+            Kind::High => &self.high,
         }
     }
 
@@ -113,6 +120,7 @@ impl AlarmSettings {
         for kind in Kind::ALL {
             let phases = match kind {
                 Kind::Low => &mut self.low,
+                Kind::High => &mut self.high,
             };
             phases.truncate(MAX_PHASES);
             for p in phases.iter_mut() {
@@ -437,6 +445,63 @@ mod tests {
         let order: Vec<u16> = s.low.iter().map(|p| p.mgdl).collect();
         assert!(order.windows(2).all(|w| w[0] >= w[1]), "{order:?}");
         assert!(order.iter().all(|&m| (40..=400).contains(&m)));
+    }
+
+    fn high() -> Vec<Phase> {
+        AlarmSettings::default().high
+    }
+
+    #[test]
+    fn high_phases_escalate_and_clear() {
+        let p = high();
+        let mut a = None;
+        // 210 flat: the 200 phase needs a rising trend.
+        assert!(step(Kind::High, &p, &mut a, Some(&r(210, Trend::Flat, 0)), NOW).is_none());
+        assert_eq!(
+            step(
+                Kind::High,
+                &p,
+                &mut a,
+                Some(&r(210, Trend::FortyFiveUp, 0)),
+                NOW
+            )
+            .unwrap()
+            .mgdl,
+            200
+        );
+        assert_eq!(
+            step(Kind::High, &p, &mut a, Some(&r(260, Trend::Flat, 0)), NOW)
+                .unwrap()
+                .mgdl,
+            250
+        );
+        step(
+            Kind::High,
+            &p,
+            &mut a,
+            Some(&r(198, Trend::SingleDown, 0)),
+            NOW,
+        );
+        assert!(a.is_some(), "within the clearing margin");
+        step(
+            Kind::High,
+            &p,
+            &mut a,
+            Some(&r(194, Trend::SingleDown, 0)),
+            NOW,
+        );
+        assert!(a.is_none());
+    }
+
+    #[test]
+    fn high_normalize_sorts_least_severe_first() {
+        let mut s = AlarmSettings {
+            high: vec![phase(300, false), phase(200, false), phase(250, false)],
+            ..Default::default()
+        };
+        s.normalize();
+        let order: Vec<u16> = s.high.iter().map(|p| p.mgdl).collect();
+        assert_eq!(order, vec![200, 250, 300]);
     }
 
     #[test]
