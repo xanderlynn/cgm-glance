@@ -45,6 +45,8 @@ function badge(p, style, k, several) {
   return h("div", { class: cls, style: `--k:${k}`, title }, el());
 }
 
+let shownKey = "";
+
 onSnapshot((snap) => {
   const b = snap.settings.badge;
   const k = SIZE[b.size] ?? 1;
@@ -57,5 +59,9 @@ onSnapshot((snap) => {
   root.classList.toggle("drag", drag);
   if (drag) root.setAttribute("data-tauri-drag-region", "");
   else root.removeAttribute("data-tauri-drag-region");
+  // Rebuild only when something the badge shows changed.
+  const key = JSON.stringify([b.style, b.size, several, shown.map((p) => [p.name, p.initials, p.status, p.value, p.unit_label, p.arrow, p.age_min, p.is_demo])]);
+  if (key === shownKey) return;
+  shownKey = key;
   root.replaceChildren(...shown.map((p) => badge(p, b.style, k, several)));
 });

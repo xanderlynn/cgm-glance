@@ -2,10 +2,35 @@
 
 export const invoke = window.__TAURI__.core.invoke;
 
-/** Calls `render` with the current snapshot now and on every update from the app. */
+/** Calls `render` with the current snapshot now and whenever the app says it changed. */
 export function onSnapshot(render) {
-  invoke("get_snapshot").then(render);
-  window.__TAURI__.event.listen("snapshot", (e) => render(e.payload));
+  // Updates arrive as a tiny "changed" signal; the data comes back through invoke,
+  // which avoids WebKit's per-script memory growth for large event payloads.
+  // A window that can't be seen (the hidden popup, a minimized Settings) skips updates
+  // and catches up once when it's shown again.
+  let pending = false;
+  let missed = false;
+  const pull = async () => {
+    if (document.hidden) {
+      missed = true;
+      return;
+    }
+    if (pending) return;
+    pending = true;
+    try {
+      render(await invoke("get_snapshot"));
+    } finally {
+      pending = false;
+    }
+  };
+  pull();
+  window.__TAURI__.event.listen("changed", pull);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && missed) {
+      missed = false;
+      pull();
+    }
+  });
 }
 
 /** Builds an element. Text always goes in as textContent, never as HTML. */

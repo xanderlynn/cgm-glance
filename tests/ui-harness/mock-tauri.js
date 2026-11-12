@@ -85,7 +85,7 @@
   // ----- events -----
   const listeners = {};
   function emit(name, payload) { (listeners[name] || []).forEach((cb) => cb({ payload })); }
-  function emitSnapshot() { emit("snapshot", snapshot()); }
+  function emitSnapshot() { emit("changed", null); }
   window.addEventListener("storage", (e) => { if (e.key === KEY) { state = load(); emitSnapshot(); } });
   setInterval(emitSnapshot, 3000);
 

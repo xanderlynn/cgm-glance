@@ -50,14 +50,52 @@ fn push(app: &AppHandle, force: bool) {
         update_trays(&app2, &snap2);
         sync_badges(&app2, &snap2);
     });
-    let _ = app.emit("snapshot", &snap);
+    // Only a tiny signal goes out as an event. Tauri delivers events by running a script in
+    // each window, and WebKit leaks memory per script in proportion to its size, so the
+    // windows fetch the snapshot themselves through the request channel instead.
+    let _ = app.emit("changed", ());
+}
+
+/// How often badge windows are recreated. WebKit window processes slowly hold on to memory
+/// over many updates; a fresh window resets that, so memory stays bounded however long the
+/// app runs. `CGM_GLANCE_RECYCLE_SECS` overrides it (used by the soak test).
+fn recycle_interval() -> Duration {
+    let secs = std::env::var("CGM_GLANCE_RECYCLE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2 * 3600)
+        .max(60);
+    Duration::from_secs(secs)
+}
+
+/// Closes all badge windows; the next refresh recreates them in the same places.
+fn recycle_badges(app: &AppHandle) {
+    for (label, w) in app.webview_windows() {
+        if label.starts_with("badge-") {
+            let _ = w.destroy();
+        }
+    }
+    let state = app.state::<AppState>();
+    let mut inner = state.lock();
+    inner.badge_geometry.clear();
+    inner.badge_flags.clear();
 }
 
 /// Checks every 5 s so ages and stale states update between fetches.
 pub fn start_ticker(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        let every = recycle_interval();
+        let mut last_recycle = Instant::now();
         loop {
+            if last_recycle.elapsed() >= every {
+                last_recycle = Instant::now();
+                let app2 = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    recycle_badges(&app2);
+                    refresh_force(&app2);
+                });
+            }
             // Short interval: after the computer wakes from sleep, old readings must turn
             // grey quickly instead of looking current.
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -153,22 +191,14 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         if tooltip.chars().count() > 120 {
             tooltip = tooltip.chars().take(119).collect::<String>() + "…";
         }
+        // Titles stay short: macOS hides menu-bar items that don't fit (e.g. beside the
+        // notch). A shared icon names only the person it is colored for; the tooltip and
+        // popup list everyone.
         let several = snap.people.len() > 1;
-        let title = match list.len() {
-            0 => String::new(),
-            1 if !several => short_title(list[0]),
-            1 => format!("{} {}", list[0].initials, short_title(list[0])),
-            _ => list
-                .iter()
-                .map(|v| {
-                    format!(
-                        "{} {}",
-                        v.initials.chars().next().unwrap_or('?'),
-                        short_title(v)
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(" · "),
+        let title = match first {
+            None => String::new(),
+            Some(v) if several => format!("{} {}", v.initials, short_title(v)),
+            Some(v) => short_title(v),
         };
         // Skip trays whose icon, tooltip and title are unchanged.
         let look = format!(
@@ -216,6 +246,10 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         old
     };
     for id in old {
+        // Hide first: dropping a removed tray icon doesn't reliably take it off the menu bar.
+        if let Some(t) = app.tray_by_id(&id) {
+            let _ = t.set_visible(false);
+        }
         let _ = app.remove_tray_by_id(&id);
     }
 }

@@ -57,6 +57,11 @@ python3 tests/ui-harness/serve.py
 #       or http://localhost:8765/tests/ui-harness/badges.html  (every badge style)
 ```
 
+### Performance tests (macOS)
+
+`tests/perf/matrix.py` runs the release build under each badge style and tray mode and
+reports CPU and memory. See the `performance-test` issues for the latest results.
+
 ## Build from source
 
 Needs [Rust](https://rustup.rs) and, on Linux:
