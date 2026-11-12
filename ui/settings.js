@@ -553,6 +553,12 @@ function badgeView() {
 // ---------- Alarms ----------
 
 const MMOL = 18.0182;
+const SOUNDS = [
+  ["off", "No sound"],
+  ["chime", "Sound: chime"],
+  ["alert", "Sound: alert"],
+  ["urgent", "Sound: urgent"],
+];
 
 function alarmsView() {
   const a = snap.settings.alarms;
@@ -564,9 +570,9 @@ function alarmsView() {
   const phaseRow = (kind, ph, i) => {
     const id = `${kind}-${i}`;
     const edit = (fn) => set((al) => fn(al[kind][i]));
-    return h(
+    const when = h(
       "div",
-      { class: `phase${ph.enabled ? "" : " off"}` },
+      { class: "line" },
       h("input", { type: "checkbox", checked: ph.enabled, "aria-label": "Phase on", "data-key": `${id}-on`, onchange: (e) => edit((p) => (p.enabled = e.target.checked)) }),
       h("span", {}, kind === "low" ? "At or below" : "At or above"),
       h("input", {
@@ -586,11 +592,21 @@ function alarmsView() {
       h("span", { class: "muted" }, unit),
       check(kind === "low" ? "only when falling" : "only when rising", ph.trend_only, (v) => edit((p) => (p.trend_only = v)), `${id}-trend`),
       h("span", { class: "grow" }),
+      h("button", { "aria-label": "Remove this phase", title: "Remove this phase", onclick: () => set((al) => al[kind].splice(i, 1)) }, "✕"),
+    );
+    const then = h(
+      "div",
+      { class: "line then" },
       h("span", { class: "muted small" }, "Then:"),
       check("Flash", ph.actions.flash, (v) => edit((p) => (p.actions.flash = v)), `${id}-flash`),
       check("Notify", ph.actions.notify, (v) => edit((p) => (p.actions.notify = v)), `${id}-notify`),
-      h("button", { "aria-label": "Remove this phase", title: "Remove this phase", onclick: () => set((al) => al[kind].splice(i, 1)) }, "✕"),
+      h(
+        "select",
+        { "aria-label": "Sound", "data-key": `${id}-sound`, onchange: (e) => edit((p) => (p.actions.sound = e.target.value)) },
+        SOUNDS.map(([v, label]) => h("option", { value: v, selected: ph.actions.sound === v }, label)),
+      ),
     );
+    return h("div", { class: `phase${ph.enabled ? "" : " off"}` }, when, then);
   };
   const phases = (kind, title) => [
     h("h3", {}, title),
@@ -605,7 +621,7 @@ function alarmsView() {
             set((al) => {
               const last = al[kind].at(-1)?.mgdl;
               const mgdl = kind === "low" ? Math.max(40, (last ?? 80) - 5) : Math.min(400, (last ?? 180) + 20);
-              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true, notify: true } });
+              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true, notify: true, sound: "off" } });
             }),
         }, "+ Add phase"),
       ),
@@ -647,7 +663,15 @@ function alarmsView() {
           onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 60) set((al) => (al.repeat_min = n)); else render(); },
         }),
       ),
-      h("p", { class: "small muted" }, "Acknowledge an alarm from the readings popup or the tray menu. Notifications use your system's notification settings; check that CGM Glance is allowed to notify."),
+      field(
+        "Snooze length (minutes)",
+        h("input", {
+          type: "number", id: "alarm-snooze", min: 5, max: 240, value: a.snooze_min,
+          onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= 5 && n <= 240) set((al) => (al.snooze_min = n)); else render(); },
+        }),
+      ),
+      h("p", { class: "small muted" }, "Snooze silences repeats and flashing for that long; a lower (or higher) phase still alerts and ends the snooze."),
+      h("p", { class: "small muted" }, "Acknowledge or snooze an alarm from the readings popup or the tray menu. Notifications use your system's notification settings; check that CGM Glance is allowed to notify."),
     ),
   );
 }

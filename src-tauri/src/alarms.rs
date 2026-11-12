@@ -7,6 +7,7 @@
 
 use crate::config::Person;
 use crate::model::{self, Reading, Units};
+use crate::sound::{self, Sound};
 use crate::state::{AppState, Inner};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -55,6 +56,7 @@ impl Kind {
 pub struct Actions {
     pub flash: bool,
     pub notify: bool,
+    pub sound: Sound,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -77,6 +79,7 @@ impl Default for Phase {
             actions: Actions {
                 flash: true,
                 notify: false,
+                sound: Sound::Off,
             },
         }
     }
@@ -95,6 +98,11 @@ impl Phase {
         self.actions.notify = true;
         self
     }
+
+    fn sound(mut self, s: Sound) -> Self {
+        self.actions.sound = s;
+        self
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -107,6 +115,8 @@ pub struct AlarmSettings {
     pub off_for: Vec<String>,
     /// An unacknowledged alarm alerts again (notification, sound) after this many minutes.
     pub repeat_min: u32,
+    /// How long "Snooze" silences alarms.
+    pub snooze_min: u32,
 }
 
 impl Default for AlarmSettings {
@@ -116,11 +126,12 @@ impl Default for AlarmSettings {
             low: vec![
                 phase(75, true),
                 phase(70, false).notify(),
-                phase(65, false).notify(),
+                phase(65, false).notify().sound(Sound::Urgent),
             ],
             high: vec![phase(200, true), phase(250, false).notify()],
             off_for: vec![],
             repeat_min: 5,
+            snooze_min: 30,
         }
     }
 }
@@ -136,6 +147,7 @@ impl AlarmSettings {
     /// Keeps saved rules sane: at most `MAX_PHASES`, 40 to 400 mg/dL, least severe first.
     pub fn normalize(&mut self) {
         self.repeat_min = self.repeat_min.clamp(1, 60);
+        self.snooze_min = self.snooze_min.clamp(5, 240);
         for kind in Kind::ALL {
             let phases = match kind {
                 Kind::Low => &mut self.low,
@@ -245,15 +257,20 @@ pub struct AlarmView {
     pub acked: bool,
 }
 
+pub fn snoozed(inner: &Inner, now: i64) -> bool {
+    inner.snoozed_until.is_some_and(|t| now < t)
+}
+
 pub fn view(inner: &Inner, p: &Person) -> Option<AlarmView> {
     let settings = &inner.config.settings.alarms;
+    let quiet = snoozed(inner, model::now_ms());
     Kind::ALL.into_iter().find_map(|kind| {
         let a = inner.alarms.get(&(p.id.clone(), kind))?;
         let phase = phase_of(settings.phases(kind), a);
         Some(AlarmView {
             kind,
             threshold: threshold_text(a.mgdl, p.units),
-            flash: !a.acked && phase.is_some_and(|ph| ph.actions.flash),
+            flash: !a.acked && !quiet && phase.is_some_and(|ph| ph.actions.flash),
             acked: a.acked,
         })
     })
@@ -268,9 +285,10 @@ fn threshold_text(mgdl: u16, units: Units) -> String {
 
 pub fn any_flashing(inner: &Inner) -> bool {
     let settings = &inner.config.settings.alarms;
-    inner.alarms.iter().any(|((_, kind), a)| {
-        !a.acked && phase_of(settings.phases(*kind), a).is_some_and(|p| p.actions.flash)
-    })
+    !snoozed(inner, model::now_ms())
+        && inner.alarms.iter().any(|((_, kind), a)| {
+            !a.acked && phase_of(settings.phases(*kind), a).is_some_and(|p| p.actions.flash)
+        })
 }
 
 /// Something to tell the user now: an alarm fired or repeated.
@@ -310,6 +328,7 @@ pub fn check(app: &AppHandle) {
         let inner = &mut *guard;
         let settings = &inner.config.settings.alarms;
         let people = &inner.config.people;
+        let mut snoozed = snoozed(inner, now);
         inner
             .alarms
             .retain(|(id, _), _| people.iter().any(|p| &p.id == id));
@@ -321,8 +340,13 @@ pub fn check(app: &AppHandle) {
                 if settings.on_for(&p.id) {
                     let phases = settings.phases(kind);
                     let fired = step(kind, phases, &mut active, latest, now).cloned();
+                    // A more severe phase always alerts and ends a snooze.
+                    if fired.is_some() {
+                        snoozed = false;
+                        inner.snoozed_until = None;
+                    }
                     let repeat = active.as_mut().and_then(|a| {
-                        if fired.is_none() && repeat_due(a, settings.repeat_min, now) {
+                        if fired.is_none() && !snoozed && repeat_due(a, settings.repeat_min, now) {
                             a.alerted_ms = now;
                             phase_of(phases, a).cloned()
                         } else {
@@ -363,6 +387,15 @@ fn deliver(app: &AppHandle, a: &Alert) {
             eprintln!("cgm-glance: notification failed: {e}");
         }
     }
+    sound::play(a.actions.sound);
+}
+
+/// Silences alarms for the configured time. A more severe phase still alerts.
+pub fn snooze(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut inner = state.lock();
+    let mins = inner.config.settings.alarms.snooze_min as i64;
+    inner.snoozed_until = Some(model::now_ms() + mins * 60_000);
 }
 
 /// Acknowledges the alarms of one person, or of everyone when `id` is None.
@@ -618,6 +651,7 @@ mod tests {
         assert_eq!(a.title, "Mia is low");
         assert_eq!(a.body, "68 mg/dL ↓ · alarm at or below 70");
         assert!(a.actions.notify);
+        assert_eq!(low()[2].actions.sound, Sound::Urgent);
     }
 
     #[test]

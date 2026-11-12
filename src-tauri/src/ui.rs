@@ -316,6 +316,7 @@ fn build_tray(
         .item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
         .item(&MenuItemBuilder::with_id("badge", "Show / hide desktop badge").build(app)?)
         .item(&MenuItemBuilder::with_id("ack", "Acknowledge alarms").build(app)?)
+        .item(&MenuItemBuilder::with_id("snooze", "Snooze alarms").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("quit", "Quit CGM Glance").build(app)?)
         .build()?;
@@ -354,6 +355,10 @@ fn handle_menu(app: &AppHandle, id: &str) {
                 inner.config.settings.badge.enabled = !inner.config.settings.badge.enabled;
                 state.save(&inner);
             }
+            refresh(app);
+        }
+        "snooze" => {
+            crate::alarms::snooze(app);
             refresh(app);
         }
         "ack" => {

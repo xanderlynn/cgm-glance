@@ -34,13 +34,19 @@ function card(p) {
   );
 }
 
+function snoozedText() {
+  const t = snap?.snoozed_until;
+  return t ? ` · snoozed until ${new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+}
+
 function alarmBanner(p) {
   const a = p.alarm;
   const what = a.kind === "low" ? `Low alarm: at or below ${a.threshold}` : `High alarm: at or above ${a.threshold}`;
   return h(
     "div",
     { class: `alarm${a.acked ? " acked" : ""}`, role: a.acked ? null : "alert" },
-    h("span", { class: "grow" }, `${what} ${p.unit_label}`, a.acked ? " · acknowledged" : ""),
+    h("span", { class: "grow" }, `${what} ${p.unit_label}`, a.acked ? " · acknowledged" : snoozedText()),
+    !a.acked && snoozedText() === "" && h("button", { onclick: () => invoke("snooze_alarms") }, "Snooze"),
     !a.acked && h("button", { onclick: () => invoke("acknowledge_alarms", { id: p.id }) }, "Acknowledge"),
   );
 }

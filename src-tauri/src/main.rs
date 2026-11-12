@@ -8,6 +8,7 @@ mod icon;
 mod model;
 mod poller;
 mod secrets;
+mod sound;
 mod sources;
 mod state;
 mod ui;
@@ -44,6 +45,7 @@ fn main() {
             commands::hide_popup,
             commands::quit_app,
             commands::acknowledge_alarms,
+            commands::snooze_alarms,
         ])
         .setup(move |app| {
             // Tray-only app: no Dock icon on macOS.

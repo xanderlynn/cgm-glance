@@ -412,3 +412,10 @@ pub fn acknowledge_alarms(app: AppHandle, id: Option<String>) {
     crate::alarms::acknowledge(&app, id.as_deref());
     ui::refresh(&app);
 }
+
+/// Silences alarms for the configured snooze time.
+#[tauri::command]
+pub fn snooze_alarms(app: AppHandle) {
+    crate::alarms::snooze(&app);
+    ui::refresh(&app);
+}

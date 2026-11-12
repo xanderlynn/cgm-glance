@@ -54,6 +54,8 @@ pub struct Inner {
     /// Flashing tray icons are drawn dimmed while this is true.
     pub flash_dim: bool,
     pub flasher_running: bool,
+    /// Alarms stay quiet until this time (ms), unless they escalate.
+    pub snoozed_until: Option<i64>,
 }
 
 pub struct AppState {
@@ -139,6 +141,8 @@ pub struct PersonView {
 #[derive(Serialize, Clone)]
 pub struct Snapshot {
     pub demo_mode: bool,
+    /// Unix ms until which alarms are snoozed.
+    pub snoozed_until: Option<i64>,
     pub people: Vec<PersonView>,
     pub settings: Settings,
     pub config_people: Vec<Person>,
@@ -235,6 +239,7 @@ pub fn snapshot(state: &AppState) -> Snapshot {
     let now = model::now_ms();
     Snapshot {
         demo_mode: state.demo_mode,
+        snoozed_until: inner.snoozed_until.filter(|&t| now < t),
         people: inner
             .config
             .people
