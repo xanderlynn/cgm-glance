@@ -15,14 +15,15 @@
     alarms: {
       enabled: true,
       off_for: [],
+      repeat_min: 5,
       low: [
-        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true } },
-        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true } },
-        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true } },
+        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false } },
+        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true } },
+        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true, notify: true } },
       ],
       high: [
-        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true } },
-        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true } },
+        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true, notify: false } },
+        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true, notify: true } },
       ],
     },
     demo_fast: true,
