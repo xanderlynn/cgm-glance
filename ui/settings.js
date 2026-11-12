@@ -588,6 +588,7 @@ function alarmsView() {
       h("span", { class: "grow" }),
       h("span", { class: "muted small" }, "Then:"),
       check("Flash", ph.actions.flash, (v) => edit((p) => (p.actions.flash = v)), `${id}-flash`),
+      check("Notify", ph.actions.notify, (v) => edit((p) => (p.actions.notify = v)), `${id}-notify`),
       h("button", { "aria-label": "Remove this phase", title: "Remove this phase", onclick: () => set((al) => al[kind].splice(i, 1)) }, "✕"),
     );
   };
@@ -604,7 +605,7 @@ function alarmsView() {
             set((al) => {
               const last = al[kind].at(-1)?.mgdl;
               const mgdl = kind === "low" ? Math.max(40, (last ?? 80) - 5) : Math.min(400, (last ?? 180) + 20);
-              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true } });
+              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true, notify: true } });
             }),
         }, "+ Add phase"),
       ),
@@ -638,7 +639,15 @@ function alarmsView() {
       h("p", { class: "small muted" }, "Phases escalate: the most extreme phase a reading is in decides what happens, and each new, more extreme phase alerts again. An alarm ends once the reading is 5 mg/dL back past its first phase. Readings older than 10 minutes never trigger an alarm."),
       ...phases("low", "Low alarm"),
       ...phases("high", "High alarm"),
-      h("p", { class: "small muted" }, "Acknowledge an alarm from the readings popup or the tray menu."),
+      h("h3", {}, "Repeat"),
+      field(
+        "Alert again every (minutes) until acknowledged",
+        h("input", {
+          type: "number", id: "alarm-repeat", min: 1, max: 60, value: a.repeat_min,
+          onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 60) set((al) => (al.repeat_min = n)); else render(); },
+        }),
+      ),
+      h("p", { class: "small muted" }, "Acknowledge an alarm from the readings popup or the tray menu. Notifications use your system's notification settings; check that CGM Glance is allowed to notify."),
     ),
   );
 }

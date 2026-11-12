@@ -54,6 +54,7 @@ impl Kind {
 #[serde(default)]
 pub struct Actions {
     pub flash: bool,
+    pub notify: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -73,7 +74,10 @@ impl Default for Phase {
             enabled: true,
             mgdl: 70,
             trend_only: false,
-            actions: Actions { flash: true },
+            actions: Actions {
+                flash: true,
+                notify: false,
+            },
         }
     }
 }
@@ -86,6 +90,13 @@ fn phase(mgdl: u16, trend_only: bool) -> Phase {
     }
 }
 
+impl Phase {
+    fn notify(mut self) -> Self {
+        self.actions.notify = true;
+        self
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct AlarmSettings {
@@ -94,15 +105,22 @@ pub struct AlarmSettings {
     pub high: Vec<Phase>,
     /// People whose alarms are turned off. The rules are shared by everyone else.
     pub off_for: Vec<String>,
+    /// An unacknowledged alarm alerts again (notification, sound) after this many minutes.
+    pub repeat_min: u32,
 }
 
 impl Default for AlarmSettings {
     fn default() -> Self {
         AlarmSettings {
             enabled: true,
-            low: vec![phase(75, true), phase(70, false), phase(65, false)],
-            high: vec![phase(200, true), phase(250, false)],
+            low: vec![
+                phase(75, true),
+                phase(70, false).notify(),
+                phase(65, false).notify(),
+            ],
+            high: vec![phase(200, true), phase(250, false).notify()],
             off_for: vec![],
+            repeat_min: 5,
         }
     }
 }
@@ -117,6 +135,7 @@ impl AlarmSettings {
 
     /// Keeps saved rules sane: at most `MAX_PHASES`, 40 to 400 mg/dL, least severe first.
     pub fn normalize(&mut self) {
+        self.repeat_min = self.repeat_min.clamp(1, 60);
         for kind in Kind::ALL {
             let phases = match kind {
                 Kind::Low => &mut self.low,
@@ -148,8 +167,14 @@ impl AlarmSettings {
 pub struct Active {
     /// Threshold of the phase that fired; identifies the phase even if the list is edited.
     pub mgdl: u16,
-    pub fired_ms: i64,
+    /// When it last alerted (fired or repeated).
+    pub alerted_ms: i64,
     pub acked: bool,
+}
+
+/// True when an unacknowledged alarm should alert again.
+pub fn repeat_due(a: &Active, repeat_min: u32, now: i64) -> bool {
+    !a.acked && now - a.alerted_ms >= repeat_min as i64 * 60_000
 }
 
 /// The most severe enabled phase the reading is in. Old readings match nothing.
@@ -194,7 +219,7 @@ pub fn step<'a>(
         {
             *active = Some(Active {
                 mgdl: p.mgdl,
-                fired_ms: now,
+                alerted_ms: now,
                 acked: false,
             });
             return Some(p);
@@ -248,10 +273,38 @@ pub fn any_flashing(inner: &Inner) -> bool {
     })
 }
 
+/// Something to tell the user now: an alarm fired or repeated.
+#[derive(Debug, Clone)]
+pub struct Alert {
+    pub title: String,
+    pub body: String,
+    pub actions: Actions,
+}
+
+fn alert_for(p: &Person, kind: Kind, phase: &Phase, r: &Reading) -> Alert {
+    let (word, edge) = match kind {
+        Kind::Low => ("low", "at or below"),
+        Kind::High => ("high", "at or above"),
+    };
+    let units = p.units;
+    Alert {
+        title: format!("{} is {word}", p.name),
+        body: format!(
+            "{} {} {} · alarm {edge} {}",
+            model::format_value(r.mgdl, units),
+            units.label(),
+            r.trend.arrow(),
+            threshold_text(phase.mgdl, units)
+        ),
+        actions: phase.actions.clone(),
+    }
+}
+
 /// Runs every alarm against the latest readings. Called before each refresh.
 pub fn check(app: &AppHandle) {
     let state = app.state::<AppState>();
     let now = model::now_ms();
+    let mut alerts = vec![];
     let flashing = {
         let mut guard = state.lock();
         let inner = &mut *guard;
@@ -266,7 +319,19 @@ pub fn check(app: &AppHandle) {
                 let key = (p.id.clone(), kind);
                 let mut active = inner.alarms.remove(&key);
                 if settings.on_for(&p.id) {
-                    step(kind, settings.phases(kind), &mut active, latest, now);
+                    let phases = settings.phases(kind);
+                    let fired = step(kind, phases, &mut active, latest, now).cloned();
+                    let repeat = active.as_mut().and_then(|a| {
+                        if fired.is_none() && repeat_due(a, settings.repeat_min, now) {
+                            a.alerted_ms = now;
+                            phase_of(phases, a).cloned()
+                        } else {
+                            None
+                        }
+                    });
+                    if let (Some(ph), Some(r)) = (fired.or(repeat), latest) {
+                        alerts.push(alert_for(p, kind, &ph, r));
+                    }
                 } else {
                     active = None;
                 }
@@ -279,6 +344,24 @@ pub fn check(app: &AppHandle) {
     };
     if flashing {
         crate::ui::ensure_flasher(app);
+    }
+    for a in alerts {
+        deliver(app, &a);
+    }
+}
+
+fn deliver(app: &AppHandle, a: &Alert) {
+    if a.actions.notify {
+        use tauri_plugin_notification::NotificationExt;
+        if let Err(e) = app
+            .notification()
+            .builder()
+            .title(&a.title)
+            .body(&a.body)
+            .show()
+        {
+            eprintln!("cgm-glance: notification failed: {e}");
+        }
     }
 }
 
@@ -502,6 +585,39 @@ mod tests {
         s.normalize();
         let order: Vec<u16> = s.high.iter().map(|p| p.mgdl).collect();
         assert_eq!(order, vec![200, 250, 300]);
+    }
+
+    #[test]
+    fn repeats_until_acknowledged() {
+        let mut a = Active {
+            mgdl: 70,
+            alerted_ms: NOW,
+            acked: false,
+        };
+        assert!(!repeat_due(&a, 5, NOW + 4 * 60_000));
+        assert!(repeat_due(&a, 5, NOW + 5 * 60_000));
+        a.acked = true;
+        assert!(!repeat_due(&a, 5, NOW + 60 * 60_000));
+    }
+
+    #[test]
+    fn alert_text() {
+        let p = Person {
+            id: "x".into(),
+            name: "Mia".into(),
+            initials: "MJ".into(),
+            color: "#000".into(),
+            units: Units::Mgdl,
+            thresholds: Default::default(),
+            source: crate::config::SourceConfig::Demo {
+                scenario: crate::config::Scenario::Low,
+            },
+            tray_icon: true,
+        };
+        let a = alert_for(&p, Kind::Low, &low()[1], &r(68, Trend::SingleDown, 0));
+        assert_eq!(a.title, "Mia is low");
+        assert_eq!(a.body, "68 mg/dL ↓ · alarm at or below 70");
+        assert!(a.actions.notify);
     }
 
     #[test]
