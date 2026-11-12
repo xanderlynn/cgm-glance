@@ -314,6 +314,7 @@ fn build_tray(
     let menu = MenuBuilder::new(app)
         .item(&MenuItemBuilder::with_id("show", "Show readings").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
+        .item(&MenuItemBuilder::with_id("update", "Check for updates…").build(app)?)
         .item(&MenuItemBuilder::with_id("badge", "Show / hide desktop badge").build(app)?)
         .item(&MenuItemBuilder::with_id("ack", "Acknowledge alarms").build(app)?)
         .item(&MenuItemBuilder::with_id("snooze", "Snooze alarms").build(app)?)
@@ -349,6 +350,10 @@ fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "show" => show_popup(app, None),
         "settings" => open_settings(app, None),
+        "update" => {
+            open_settings(app, Some("general"));
+            crate::updater::check(app, true);
+        }
         "badge" => {
             let state = app.state::<AppState>();
             {

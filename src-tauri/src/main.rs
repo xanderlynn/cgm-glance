@@ -15,6 +15,7 @@ mod sound;
 mod sources;
 mod state;
 mod ui;
+mod updater;
 
 use tauri::Manager;
 
@@ -30,6 +31,7 @@ fn main() {
             ui::open_settings(app, None)
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -50,6 +52,8 @@ fn main() {
             commands::acknowledge_alarms,
             commands::snooze_alarms,
             commands::set_quiet,
+            commands::check_update,
+            commands::install_update,
         ])
         .setup(move |app| {
             // Tray-only app: no Dock icon on macOS.
@@ -70,6 +74,7 @@ fn main() {
             app.manage(state::AppState::new(cfg, path, demo));
             poller::start_all(&handle);
             ui::start_ticker(&handle);
+            updater::start(&handle);
             ui::refresh(&handle);
             if first_run {
                 ui::open_settings(&handle, Some("people"));

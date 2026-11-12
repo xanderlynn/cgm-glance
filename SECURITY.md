@@ -37,6 +37,10 @@
   and pull request. GitHub Actions are pinned to exact commits, and Dependabot proposes
   updates weekly.
 - `.gitignore` excludes local config files and common key formats.
+- In-app updates are fetched over HTTPS from this repository's GitHub Releases and installed
+  only if their signature matches the public key built into the app. The private update key
+  exists only as a GitHub Actions secret (and with the maintainer), never in the repository.
+  Draft releases aren't served, so nothing ships until a release is published.
 
 ## Reporting a problem
 

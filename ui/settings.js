@@ -26,7 +26,8 @@ let snap = null;
 let tab = "people";
 let wizard = null; // set while adding a person, signing in again, or editing
 let confirmRemove = null; // id of the person whose removal is being confirmed
-let shownKey = ""; // what the People list currently shows, to skip needless redraws
+let shownKey = "";
+let shownUpdate = ""; // update status the General tab last drew // what the People list currently shows, to skip needless redraws
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
 
@@ -119,6 +120,7 @@ function openTab(name) {
 function render() {
   if (!snap) return;
   shownKey = listKey(snap);
+  shownUpdate = JSON.stringify(snap.update);
   const focusKey = document.activeElement?.dataset?.key;
   renderNav();
   const views = { people: wizard ? wizardView : peopleView, tray: trayView, badge: badgeView, alarms: alarmsView, general: generalView, about: aboutView };
@@ -824,6 +826,50 @@ function quietSection(a, set) {
 
 // ---------- General / About ----------
 
+// What each update state says, and the button it offers.
+function updateLine(u) {
+  const st = u.status;
+  const when = (ms) => new Date(ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  switch (st.state) {
+    case "checking":
+      return ["Checking for updates…", null];
+    case "up_to_date":
+      return [`You have the latest version. Checked ${when(st.checked_ms)}.`, null];
+    case "no_release":
+      return [`No release has been published yet. Checked ${when(st.checked_ms)}.`, null];
+    case "available":
+      return [`Version ${st.version} is available.`, h("button", { class: "primary", onclick: () => invoke("install_update") }, "Install and restart")];
+    case "downloading":
+      return [st.percent == null ? "Downloading the update…" : `Downloading the update… ${st.percent}%`, null];
+    case "installing":
+      return ["Installing. CGM Glance will restart.", null];
+    case "error":
+      return [st.message, null];
+    default:
+      return ["", null];
+  }
+}
+
+function updatesSection(g) {
+  const u = snap.update;
+  const st = u.status;
+  const [line, action] = updateLine(u);
+  const busy = ["checking", "downloading", "installing"].includes(st.state);
+  return [
+    h("h3", {}, "Updates"),
+    h("p", { class: "small" }, `Current version: ${u.current}`),
+    check("Check for updates automatically (at start and daily)", g.auto_update, (v) => save((s) => (s.auto_update = v)), "auto-update"),
+    line && h("p", { class: st.state === "error" ? "error" : "small", role: "status" }, line),
+    st.state === "available" && st.notes && h("div", { class: "note small notes" }, st.notes),
+    h("div", { class: "actions" }, action, h("button", { disabled: busy, onclick: () => invoke("check_update") }, "Check now")),
+    h(
+      "p",
+      { class: "small muted" },
+      "Updates come from this app's GitHub Releases. Each one is checked against a signing key built into the app before it installs, and your settings and sign-ins are kept.",
+    ),
+  ];
+}
+
 function generalView() {
   const g = snap.settings;
   return h(
@@ -831,6 +877,7 @@ function generalView() {
     {},
     h("h2", {}, "General"),
     check("Start CGM Glance when I sign in", g.autostart, (v) => save((s) => (s.autostart = v)), "autostart"),
+    ...updatesSection(g),
     h("h3", {}, "Test mode"),
     snap.people.some((p) => p.is_demo) &&
       check("Fast demo data: a new reading every 10 seconds", g.demo_fast, (v) => save((s) => (s.demo_fast = v)), "demo-fast"),
@@ -878,4 +925,6 @@ onSnapshot((s) => {
   if (first) openTab(location.hash.slice(1) || "people");
   // Live data matters on the People list; other tabs redraw only when changed here.
   else if (tab === "people" && !wizard && listKey(s) !== shownKey) render();
+  // The General tab follows update progress, but only redraws when it changes.
+  else if (tab === "general" && JSON.stringify(s.update) !== shownUpdate) render();
 });

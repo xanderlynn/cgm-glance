@@ -1,7 +1,9 @@
 name: Release
 
-# Push a tag like v0.1.0 to build installers for all three systems
-# and attach them to a draft GitHub Release.
+# Push a tag like v0.2.0 (matching the version in tauri.conf.json and Cargo.toml) to build
+# signed installers for all three systems and attach them, with latest.json for in-app
+# updates, to a draft GitHub Release. Needs the TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD repository secrets.
 on:
   push:
     tags: ["v*"]
@@ -39,14 +41,21 @@ jobs:
         with:
           workspaces: src-tauri
       - run: cargo install tauri-cli --version "=2.12.4" --locked
-      - run: cargo tauri build ${{ matrix.args }}
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      # Builds the installers, signs the updater bundles and uploads them with latest.json
+      # to a draft release. The app's updater ignores drafts, so publishing the release is
+      # the manual step that ships an update.
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The private signing key exists only as these two repository secrets.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          draft: true
-          files: |
-            src-tauri/target/**/bundle/msi/*.msi
-            src-tauri/target/**/bundle/nsis/*.exe
-            src-tauri/target/**/bundle/dmg/*.dmg
-            src-tauri/target/**/bundle/appimage/*.AppImage
-            src-tauri/target/**/bundle/deb/*.deb
-            src-tauri/target/**/bundle/rpm/*.rpm
+          tauriScript: cargo tauri
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: CGM Glance ${{ github.ref_name }}
+          releaseBody: See the commits since the last release. Not a medical device; keep the Dexcom app's alarms on.
+          releaseDraft: true
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
