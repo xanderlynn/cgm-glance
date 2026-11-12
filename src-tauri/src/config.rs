@@ -251,23 +251,70 @@ pub fn file_path(dir: &Path, demo: bool) -> PathBuf {
     })
 }
 
+pub fn is_color(c: &str) -> bool {
+    let b = c.as_bytes();
+    b.len() == 7 && b[0] == b'#' && b[1..].iter().all(|x| x.is_ascii_hexdigit())
+}
+
+/// Makes the settings folder and file private to the current user (no-op elsewhere).
+fn make_private(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Some(dir) = path.parent().filter(|d| d.exists()) {
+            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        }
+        if path.exists() {
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+}
+
 pub fn load(path: &Path) -> Config {
-    match std::fs::read_to_string(path) {
+    // Files saved by earlier versions may be readable by other users; fix that first.
+    make_private(path);
+    let mut cfg = match std::fs::read_to_string(path) {
         Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
-            eprintln!("cgm-glance: config unreadable ({e}); starting fresh");
+            // Keep the unreadable file instead of overwriting it on the next save.
+            let backup = path.with_extension("json.unreadable");
+            let _ = std::fs::rename(path, &backup);
+            eprintln!(
+                "cgm-glance: settings unreadable ({e}); kept a copy at {}",
+                backup.display()
+            );
             Config::default()
         }),
         Err(_) => Config::default(),
+    };
+    // Colors go into page styles, so only plain #RRGGBB values are allowed.
+    for p in &mut cfg.people {
+        if !is_color(&p.color) {
+            p.color = "#4C6FFF".into();
+        }
     }
+    cfg
 }
 
 /// Write to a temp file then rename, so a crash never leaves a half-written config.
+/// The file is readable only by the current user (names and site addresses are personal).
 pub fn save(path: &Path, cfg: &Config) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        }
     }
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, serde_json::to_vec_pretty(cfg)?)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
     std::fs::rename(tmp, path)
 }
 
@@ -332,6 +379,34 @@ mod tests {
             .unwrap();
             assert_eq!(c.settings.badge.style, BadgeStyle::Pill);
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn saved_file_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("cgm-glance-test-{}", uuid::Uuid::new_v4()));
+        let path = file_path(&dir, false);
+        save(&path, &sample()).unwrap();
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn bad_colors_are_replaced_and_unreadable_files_kept() {
+        let dir = std::env::temp_dir().join(format!("cgm-glance-test-{}", uuid::Uuid::new_v4()));
+        let path = file_path(&dir, false);
+        let mut c = sample();
+        c.people[0].color = "red;background:url(x)".into();
+        save(&path, &c).unwrap();
+        assert_eq!(load(&path).people[0].color, "#4C6FFF");
+        std::fs::write(&path, "{ not json").unwrap();
+        assert!(load(&path).people.is_empty());
+        assert!(path.with_extension("json.unreadable").exists());
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]

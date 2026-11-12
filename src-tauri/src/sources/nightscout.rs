@@ -1,6 +1,6 @@
 //! Nightscout client. Uses a read-only access token; no Dexcom password involved.
 
-use super::{network_error, FetchError};
+use super::{network_error, read_body, FetchError};
 use crate::model::{Reading, Trend};
 use serde_json::Value;
 
@@ -31,11 +31,11 @@ impl NightscoutClient {
         })
     }
 
-    pub async fn fetch(&mut self) -> Result<Vec<Reading>, FetchError> {
+    pub async fn fetch(&mut self, count: u32) -> Result<Vec<Reading>, FetchError> {
         let mut req = self
             .http
             .get(format!("{}/api/v1/entries/sgv.json", self.base))
-            .query(&[("count", "40")]);
+            .query(&[("count", count)]);
         if let Some(t) = &self.token {
             req = req.query(&[("token", t.as_str())]);
         }
@@ -62,7 +62,8 @@ impl NightscoutClient {
                 )))
             }
         }
-        let v: Value = resp.json().await.map_err(network_error)?;
+        let v: Value = serde_json::from_slice(&read_body(resp).await?)
+            .map_err(|_| FetchError::Other("Unexpected answer from Nightscout.".into()))?;
         parse_entries(&v)
     }
 }

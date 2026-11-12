@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Local app windows only. No remote content, no file or shell access.",
   "windows": ["settings", "popup", "badge-*"],
-  "permissions": ["core:event:default", "core:window:allow-start-dragging", "core:app:allow-version"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "core:app:allow-version"
+  ]
 }

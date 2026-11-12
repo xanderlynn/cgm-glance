@@ -1,7 +1,7 @@
 //! One background task per person that fetches readings on the sensor's schedule.
 
 use crate::config::SourceConfig;
-use crate::model::{now_ms, Status};
+use crate::model::{merge_readings, now_ms, Status};
 use crate::secrets;
 use crate::sources::{FetchError, SourceClient};
 use crate::state::{AppState, Runtime};
@@ -87,7 +87,13 @@ fn set_error(app: &AppHandle, id: &str, status: Status, msg: String) {
 async fn run(app: AppHandle, id: String, mut client: SourceClient) {
     let mut backoff = 30u64;
     loop {
-        let result = client.fetch().await;
+        let since = app
+            .state::<AppState>()
+            .lock()
+            .runtime
+            .get(&id)
+            .and_then(|r| r.readings.last().map(|r| r.time_ms));
+        let result = client.fetch(since).await;
         let delay = {
             let state = app.state::<AppState>();
             let mut inner = state.lock();
@@ -95,9 +101,8 @@ async fn run(app: AppHandle, id: String, mut client: SourceClient) {
             match result {
                 Ok(readings) => {
                     rt.error = None;
-                    if !readings.is_empty() {
-                        rt.readings = readings;
-                    }
+                    rt.readings =
+                        merge_readings(std::mem::take(&mut rt.readings), readings, now_ms());
                     backoff = 30;
                     Some(match client.fast_interval() {
                         Some(s) => Duration::from_secs(s),
@@ -123,7 +128,8 @@ async fn run(app: AppHandle, id: String, mut client: SourceClient) {
             None => break,
         }
     }
-    app.state::<AppState>().lock().pollers.remove(&id);
+    // The finished handle stays in `pollers`; aborting a finished task is harmless, and
+    // removing it here could remove a newer poller started for the same person.
 }
 
 #[cfg(test)]

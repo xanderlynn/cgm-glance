@@ -2,7 +2,7 @@
 //! Needs the login of the person wearing the sensor, not a follower.
 //! On a password error we stop instead of retrying, so we never lock the account.
 
-use super::{network_error, FetchError};
+use super::{network_error, read_body, FetchError};
 use crate::config::Region;
 use crate::model::{Reading, Trend};
 use serde_json::{json, Value};
@@ -72,8 +72,8 @@ impl ShareClient {
             .await
             .map_err(network_error)?;
         let status = resp.status();
-        let text = resp.text().await.map_err(network_error)?;
-        let value: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        let body = read_body(resp).await?;
+        let value: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
         if status.is_success() {
             Ok(value)
         } else {
@@ -122,29 +122,34 @@ impl ShareClient {
         Ok(())
     }
 
-    async fn read(&self) -> Result<Vec<Reading>, CallError> {
+    async fn read(&self, (minutes, max_count): (u32, u32)) -> Result<Vec<Reading>, CallError> {
+        let (minutes, max_count) = (minutes.to_string(), max_count.to_string());
         let sid = self.session.as_deref().unwrap_or(NULL_ID);
         let v = self
             .post(
                 "Publisher/ReadPublisherLatestGlucoseValues",
                 json!({}),
-                &[("sessionId", sid), ("minutes", "180"), ("maxCount", "40")],
+                &[
+                    ("sessionId", sid),
+                    ("minutes", &minutes),
+                    ("maxCount", &max_count),
+                ],
             )
             .await?;
         Ok(parse_readings(&v)?)
     }
 
-    pub async fn fetch(&mut self) -> Result<Vec<Reading>, FetchError> {
+    pub async fn fetch(&mut self, window: (u32, u32)) -> Result<Vec<Reading>, FetchError> {
         if self.session.is_none() {
             self.login().await?;
         }
-        match self.read().await {
+        match self.read(window).await {
             Ok(r) => Ok(r),
             Err(CallError::SessionExpired) => {
                 // Sessions expire after a while; sign in once more, then give up.
                 self.session = None;
                 self.login().await?;
-                match self.read().await {
+                match self.read(window).await {
                     Ok(r) => Ok(r),
                     Err(CallError::SessionExpired) => Err(FetchError::Other(
                         "Dexcom keeps rejecting the session.".into(),

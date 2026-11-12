@@ -5,7 +5,7 @@
 use crate::config::{Person, Region, Scenario, Settings, SourceConfig};
 use crate::model::{self, Thresholds, Units};
 use crate::secrets::{self, Secret};
-use crate::sources::{nightscout, SourceClient};
+use crate::sources::{nightscout, FetchError, SourceClient};
 use crate::state::{self, AppState, Draft, Snapshot};
 use crate::{poller, ui};
 use serde::{Deserialize, Serialize};
@@ -61,8 +61,7 @@ fn validate(d: &Display) -> Result<(), String> {
     if n == 0 || n > 3 {
         return Err("Initials must be 1 to 3 characters.".into());
     }
-    let c = d.color.as_bytes();
-    if c.len() != 7 || c[0] != b'#' || !c[1..].iter().all(|b| b.is_ascii_hexdigit()) {
+    if !crate::config::is_color(&d.color) {
         return Err("Pick a color.".into());
     }
     let t = &d.thresholds;
@@ -120,10 +119,26 @@ pub async fn test_connection(app: AppHandle, source: NewSource) -> Result<TestRe
     };
     let fast = state.lock().config.settings.demo_fast;
     let seed = model::now_ms() as u64;
+    // Dexcom locks accounts after repeated wrong passwords, so space out test attempts.
+    let is_share = matches!(cfg, SourceConfig::DexcomShare { .. });
+    if is_share
+        && state
+            .lock()
+            .last_auth_fail
+            .is_some_and(|t| t.elapsed() < Duration::from_secs(20))
+    {
+        return Err(
+            "Wait 20 seconds before trying again, so Dexcom doesn't lock the account.".into(),
+        );
+    }
     let mut client = SourceClient::build(&cfg, secret.clone(), state.http.clone(), fast, seed)?;
     // One attempt only. A wrong Dexcom password is never retried automatically.
-    let (readings, note) = match client.fetch().await {
+    let (readings, note) = match client.fetch(None).await {
         Ok(r) => (r, None),
+        Err(FetchError::Auth(m)) if is_share => {
+            state.lock().last_auth_fail = Some(Instant::now());
+            return Err(m);
+        }
         Err(e) if cfg.is_demo() => (
             vec![],
             Some(format!(
@@ -186,6 +201,7 @@ pub fn save_person(
             .ok_or("That connection test has expired. Test the connection again.")?;
         (d.source.clone(), d.secret.clone())
     };
+    let replacing = replace_id.is_some();
     let id = replace_id.unwrap_or_else(|| {
         let u = uuid::Uuid::new_v4().to_string();
         if source.is_demo() {
@@ -197,7 +213,9 @@ pub fn save_person(
     // If the keychain fails, the draft stays so the user can retry without retyping.
     match &secret {
         Some(secret) => secrets::store(&id, secret)?,
-        None => secrets::delete(&id),
+        // Switching an existing person to demo data removes their old sign-in.
+        None if replacing => secrets::delete(&id),
+        None => {}
     }
     {
         let mut inner = state.lock();
@@ -329,7 +347,7 @@ pub fn reset_badge_positions(app: AppHandle) {
         inner.badge_geometry.clear();
         state.save(&inner);
     }
-    ui::refresh(&app);
+    ui::refresh_force(&app);
 }
 
 #[tauri::command]

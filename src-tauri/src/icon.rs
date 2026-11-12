@@ -29,13 +29,28 @@ impl Canvas {
 
     /// Fills every pixel covered by `inside`, with 4×4 supersampling for smooth edges.
     fn fill(&mut self, rgb: [u8; 3], inside: impl Fn(f32, f32) -> bool) {
+        let s = self.size as f32;
+        self.fill_in(rgb, (0.0, 0.0, s, s), inside);
+    }
+
+    /// Like `fill`, but only visits pixels inside the box `(x0, y0, x1, y1)`.
+    /// Small shapes (digit blocks, notches) touch a few pixels instead of the whole icon.
+    fn fill_in(
+        &mut self,
+        rgb: [u8; 3],
+        (x0, y0, x1, y1): (f32, f32, f32, f32),
+        inside: impl Fn(f32, f32) -> bool,
+    ) {
         let c = [
             rgb[0] as f32 / 255.0,
             rgb[1] as f32 / 255.0,
             rgb[2] as f32 / 255.0,
         ];
-        for y in 0..self.size {
-            for x in 0..self.size {
+        let span = |a: f32, b: f32| {
+            (a.floor().max(0.0) as u32)..(b.ceil().min(self.size as f32).max(0.0) as u32)
+        };
+        for y in span(y0, y1) {
+            for x in span(x0, x1) {
                 let mut hits = 0;
                 for sy in 0..4 {
                     for sx in 0..4 {
@@ -140,7 +155,7 @@ fn draw_text(cv: &mut Canvas, text: &str, inset: f32, top: f32, avail_h: f32) {
             for col in 0..w {
                 if bits >> (w - 1 - col) & 1 == 1 {
                     let (gx, gy) = (x0 + col as f32 * sx, y0 + row as f32 * sy);
-                    cv.fill(WHITE, |x, y| {
+                    cv.fill_in(WHITE, (gx, gy, gx + sx, gy + sy), |x, y| {
                         x >= gx && x < gx + sx && y >= gy && y < gy + sy
                     });
                 }
@@ -167,7 +182,7 @@ pub fn number_icon(spec: &IconSpec, size: u32) -> Vec<u8> {
         let half = notch * if spec.direction.abs() == 2 { 2.0 } else { 1.3 };
         let mid = s / 2.0;
         if spec.direction > 0 {
-            cv.fill(WHITE, |x, y| {
+            cv.fill_in(WHITE, (mid - half, 0.0, mid + half, notch + 1.0), |x, y| {
                 triangle(
                     (x, y),
                     (mid - half, notch + 0.5),
@@ -176,14 +191,18 @@ pub fn number_icon(spec: &IconSpec, size: u32) -> Vec<u8> {
                 )
             });
         } else {
-            cv.fill(WHITE, |x, y| {
-                triangle(
-                    (x, y),
-                    (mid - half, s - notch - 0.5),
-                    (mid + half, s - notch - 0.5),
-                    (mid, s - 0.5),
-                )
-            });
+            cv.fill_in(
+                WHITE,
+                (mid - half, s - notch - 1.0, mid + half, s),
+                |x, y| {
+                    triangle(
+                        (x, y),
+                        (mid - half, s - notch - 0.5),
+                        (mid + half, s - notch - 0.5),
+                        (mid, s - 0.5),
+                    )
+                },
+            );
         }
     }
     if spec.status == Status::UrgentLow {
@@ -208,7 +227,7 @@ pub fn number_icon(spec: &IconSpec, size: u32) -> Vec<u8> {
     );
     if spec.demo {
         let m = (s / 8.0).max(2.0);
-        cv.fill([255, 209, 102], |x, y| x < m && y < m);
+        cv.fill_in([255, 209, 102], (0.0, 0.0, m, m), |x, y| x < m && y < m);
     }
     cv.rgba()
 }
@@ -227,7 +246,7 @@ pub fn dot_icon(spec: &IconSpec, size: u32) -> Vec<u8> {
     }
     if spec.demo {
         let m = (s / 6.0).max(2.0);
-        cv.fill([255, 209, 102], |x, y| x < m && y < m);
+        cv.fill_in([255, 209, 102], (0.0, 0.0, m, m), |x, y| x < m && y < m);
     }
     cv.rgba()
 }

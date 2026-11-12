@@ -42,6 +42,12 @@ pub struct Inner {
     pub badge_flags: HashMap<String, String>,
     pub move_seq: HashMap<String, u64>,
     pub popup_hidden_at: Option<Instant>,
+    /// What was last sent to the windows and tray, to skip unchanged refreshes.
+    pub last_pushed: String,
+    /// Last applied look per tray icon, to skip redrawing unchanged icons.
+    pub tray_looks: HashMap<String, String>,
+    /// When Dexcom last rejected a password in the setup wizard.
+    pub last_auth_fail: Option<Instant>,
 }
 
 pub struct AppState {
@@ -55,6 +61,19 @@ impl AppState {
     pub fn new(config: Config, path: PathBuf, demo_mode: bool) -> Self {
         let http = reqwest::Client::builder()
             .https_only(true)
+            // Follow redirects only on the same host, so a token or session id in the URL
+            // can never be forwarded to another server.
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                let same_host = attempt
+                    .previous()
+                    .first()
+                    .is_some_and(|first| first.host_str() == attempt.url().host_str());
+                if same_host && attempt.previous().len() < 3 {
+                    attempt.follow()
+                } else {
+                    attempt.stop()
+                }
+            }))
             .timeout(std::time::Duration::from_secs(20))
             .user_agent(concat!("cgm-glance/", env!("CARGO_PKG_VERSION")))
             .build()

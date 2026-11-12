@@ -13,11 +13,29 @@
 - On a wrong Dexcom password the app stops trying, so it can't lock the account.
 - The app only connects to the Dexcom Share host for the chosen region or the user's own
   Nightscout site, over HTTPS. No analytics or tracking.
+- Redirects are followed only on the same host, so a token or session id can't be sent
+  to another server. Answers larger than 512 KB are refused.
+- After Dexcom rejects a password in the setup wizard, the next attempt must wait 20 s.
+- The settings file and its folder are readable only by the current user (on macOS and
+  Linux). An unreadable settings file is kept as `config.json.unreadable`, not overwritten.
+- Windows can only listen for app events, not send them, and load only the app's own pages
+  (strict Content-Security-Policy).
+
+## Known limits
+
+- The Nightscout access token travels in the request URL, as Nightscout's API expects. It
+  stays within HTTPS to your own site, but your site's access logs may record it. Use a
+  token with only the "readable" role.
+- Builds aren't code-signed yet, so the OS can't verify where an installer came from.
+- Some Linux-only libraries pulled in by Tauri and the keyring are flagged as unmaintained
+  by `cargo audit`. None have known vulnerabilities; updates come from upstream.
 
 ## This repository
 
 - No real credentials, tokens or patient data belong here. Tests use synthetic data only.
-- CI runs [gitleaks](https://github.com/gitleaks/gitleaks) on every push and pull request.
+- CI runs [gitleaks](https://github.com/gitleaks/gitleaks) and `cargo audit` on every push
+  and pull request. GitHub Actions are pinned to exact commits, and Dependabot proposes
+  updates weekly.
 - `.gitignore` excludes local config files and common key formats.
 
 ## Reporting a problem

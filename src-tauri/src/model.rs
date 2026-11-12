@@ -245,6 +245,23 @@ pub fn to_units(mgdl: u16, units: Units) -> f64 {
     }
 }
 
+/// Adds newly fetched readings to the ones already held: sorted, one per timestamp
+/// (newest data wins), and nothing older than 3 hours 10 minutes.
+pub fn merge_readings(old: Vec<Reading>, new: Vec<Reading>, now: i64) -> Vec<Reading> {
+    let cutoff = now - (3 * 60 + 10) * 60_000;
+    let mut all: Vec<Reading> = old
+        .into_iter()
+        .chain(new)
+        .filter(|r| r.time_ms >= cutoff)
+        .collect();
+    all.sort_by_key(|r| r.time_ms);
+    // Keep the last of each equal timestamp, which is the newly fetched one.
+    all.reverse();
+    all.dedup_by_key(|r| r.time_ms);
+    all.reverse();
+    all
+}
+
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -298,6 +315,23 @@ mod tests {
         assert!(icon_value(400, Units::Mmol).len() <= 3);
         assert_eq!(format_delta(2, Units::Mgdl), "+2");
         assert_eq!(format_delta(-6, Units::Mgdl), "-6");
+    }
+
+    #[test]
+    fn merge_keeps_three_hours_without_duplicates() {
+        let now = 1_700_000_000_000;
+        let r = |mgdl, mins_ago: i64| Reading {
+            mgdl,
+            trend: Trend::Flat,
+            time_ms: now - mins_ago * 60_000,
+        };
+        let old = vec![r(100, 200), r(110, 10), r(120, 5)];
+        let new = vec![r(121, 5), r(130, 0)];
+        let m = merge_readings(old, new, now);
+        assert_eq!(
+            m.iter().map(|x| x.mgdl).collect::<Vec<_>>(),
+            vec![110, 121, 130]
+        );
     }
 
     #[test]

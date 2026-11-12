@@ -16,9 +16,34 @@ use tauri::{
     WebviewWindowBuilder, WindowEvent,
 };
 
-/// Rebuilds the view model and pushes it to the tray, the badges and every open window.
+/// Rebuilds the view model and pushes it to the tray, the badges and every open window,
+/// but only when something visible changed (the ticker calls this every 5 s).
 pub fn refresh(app: &AppHandle) {
-    let snap = state::snapshot(&app.state::<AppState>());
+    push(app, false);
+}
+
+/// Like `refresh`, but always re-applies tray and badge state (e.g. after resetting
+/// badge positions, which isn't part of the snapshot).
+pub fn refresh_force(app: &AppHandle) {
+    push(app, true);
+}
+
+fn push(app: &AppHandle, force: bool) {
+    let state = app.state::<AppState>();
+    let snap = state::snapshot(&state);
+    // The tray icon size is part of the key so a display-scale change redraws it.
+    let key = format!(
+        "{}|{}",
+        tray_icon_size(app),
+        serde_json::to_string(&snap).unwrap_or_default()
+    );
+    {
+        let mut inner = state.lock();
+        if !force && inner.last_pushed == key {
+            return;
+        }
+        inner.last_pushed = key;
+    }
     let app2 = app.clone();
     let snap2 = snap.clone();
     let _ = app.run_on_main_thread(move || {
@@ -28,7 +53,7 @@ pub fn refresh(app: &AppHandle) {
     let _ = app.emit("snapshot", &snap);
 }
 
-/// Re-renders every 30 s so ages and stale states update between fetches.
+/// Checks every 5 s so ages and stale states update between fetches.
 pub fn start_ticker(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -117,12 +142,6 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
             direction: first.map(|v| v.direction).unwrap_or(0),
             demo: first.is_some_and(|v| v.is_demo),
         };
-        let rgba = if use_dot {
-            dot_icon(&spec, size)
-        } else {
-            number_icon(&spec, size)
-        };
-        let image = Image::new_owned(rgba, size, size);
         let mut tooltip = if list.is_empty() {
             "CGM Glance: add a person in Settings".to_string()
         } else {
@@ -151,7 +170,23 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
                 .collect::<Vec<_>>()
                 .join(" · "),
         };
-        if let Some(t) = app.tray_by_id(id) {
+        // Skip trays whose icon, tooltip and title are unchanged.
+        let look = format!(
+            "{:?}|{:?}|{}|{}|{size}|{use_dot}|{tooltip}|{title}",
+            spec.status, spec.text, spec.direction, spec.demo
+        );
+        let existing = app.tray_by_id(id);
+        let state = app.state::<AppState>();
+        if existing.is_some() && state.lock().tray_looks.get(id) == Some(&look) {
+            continue;
+        }
+        let rgba = if use_dot {
+            dot_icon(&spec, size)
+        } else {
+            number_icon(&spec, size)
+        };
+        let image = Image::new_owned(rgba, size, size);
+        if let Some(t) = existing {
             let _ = t.set_icon(Some(image));
             let _ = t.set_tooltip(Some(&tooltip));
             if !cfg!(windows) {
@@ -159,20 +194,25 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
             }
         } else if let Err(e) = build_tray(app, id, image, &tooltip, &title) {
             eprintln!("cgm-glance: tray icon failed: {e}");
+            continue;
         }
+        state.lock().tray_looks.insert(id.clone(), look);
     }
 
     let keep: Vec<String> = desired.into_iter().map(|(id, _)| id).collect();
     let state = app.state::<AppState>();
     let old: Vec<String> = {
         let mut inner = state.lock();
-        let old = inner
+        let old: Vec<String> = inner
             .trays
             .iter()
             .filter(|id| !keep.contains(id))
             .cloned()
             .collect();
         inner.trays = keep.into_iter().collect();
+        for id in &old {
+            inner.tray_looks.remove(id);
+        }
         old
     };
     for id in old {
