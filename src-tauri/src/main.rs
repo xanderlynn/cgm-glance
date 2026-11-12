@@ -9,6 +9,8 @@ mod model;
 mod poller;
 mod quiet;
 mod secrets;
+#[cfg(test)]
+mod sim;
 mod sound;
 mod sources;
 mod state;

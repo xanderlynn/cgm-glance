@@ -16,19 +16,23 @@
       enabled: true,
       off_for: [],
       repeat_min: 5,
+      high_repeat_min: 30,
+      low_ack_min: 15,
+      high_ack_min: 60,
       snooze_min: 30,
+      no_data: { after_min: 30, actions: { flash: false, notify: true, sound: "chime" } },
       quiet: [
         { name: "Work", enabled: false, days: [0, 1, 2, 3, 4], start: 540, end: 1020, allow: { flash: true, notify: true, sound: false } },
         { name: "Focus", enabled: false, days: [0, 1, 2, 3, 4], start: 540, end: 660, allow: { flash: true, notify: false, sound: false } },
       ],
       low: [
-        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false, sound: "off" } },
-        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true, sound: "off" } },
-        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true, notify: true, sound: "urgent" } },
+        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false, sound: "off" }, breakthrough: false },
+        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true, sound: "off" }, breakthrough: false },
+        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true, notify: true, sound: "urgent" }, breakthrough: false },
       ],
       high: [
-        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true, notify: false, sound: "off" } },
-        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true, notify: true, sound: "off" } },
+        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true, notify: false, sound: "off" }, breakthrough: false },
+        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true, notify: true, sound: "off" }, breakthrough: false },
       ],
     },
     demo_fast: true,
@@ -102,7 +106,8 @@
     const hit = low || high;
     if (!hit) return null;
     const acked = (state.acked || {})[p.id] === hit.mgdl;
-    return { kind: low ? "low" : "high", threshold: fmt(hit.mgdl, p.units), flash: !acked && !(state.snoozed_until > Date.now()) && hit.actions.flash, acked, _mgdl: hit.mgdl };
+    const snoozed_until = (state.snoozed || {})[p.id] > Date.now() ? state.snoozed[p.id] : null;
+    return { kind: low ? "low" : "high", threshold: fmt(hit.mgdl, p.units), flash: !acked && !snoozed_until && hit.actions.flash, acked, snoozed_until, _mgdl: hit.mgdl };
   }
   const snapshot = () => {
     const now = Date.now();
@@ -110,10 +115,9 @@
     // Gallery overrides: badge.html?style=card&size=l shows one style regardless of saved settings.
     for (const k of ["style", "size"]) if (params.get(k)) settings.badge[k] = params.get(k);
     if (params.get("style")) settings.badge.people = [];
-    const snoozed_until = state.snoozed_until > now ? state.snoozed_until : null;
     const manual = state.quiet_until > now ? state.quiet_until : null;
     const quiet = manual ? { name: "Quiet for now", allow: { flash: true, notify: false, sound: false }, manual_until: manual } : null;
-    return { demo_mode: true, snoozed_until, quiet, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
+    return { demo_mode: true, sound_error: null, quiet, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
   };
 
   // ----- events -----
@@ -176,7 +180,11 @@
     hide_popup: () => {},
     quit_app: () => {},
     set_quiet: ({ minutes }) => { state.quiet_until = minutes ? Date.now() + minutes * MIN : null; persist(); },
-    snooze_alarms: () => { state.snoozed_until = Date.now() + state.settings.alarms.snooze_min * MIN; persist(); },
+    snooze_alarms: ({ id }) => {
+      state.snoozed ||= {};
+      for (const p of state.people) if (!id || p.id === id) state.snoozed[p.id] = Date.now() + state.settings.alarms.snooze_min * MIN;
+      persist();
+    },
     acknowledge_alarms: ({ id }) => {
       state.acked ||= {};
       for (const v of snapshot().people) if (v.alarm && (!id || v.id === id)) state.acked[v.id] = v.alarm._mgdl;

@@ -22,6 +22,16 @@ glucose reading for one or more people with T1D, plus an optional movable deskto
 - **Several people:** one tray icon each or one combined icon; one badge each or combined.
 - **Old data is obvious:** grey after 10 minutes, the number is hidden after 20.
 
+## Alarms
+
+Settings → Alarms. They add to the Dexcom app's own alarms; they don't replace them.
+
+- **Escalating phases** for lows and highs, e.g. ≤75 and falling: flash; ≤70: notification; ≤65: urgent sound. Each phase has its own number, an optional "only when falling/rising" condition, and its own actions.
+- **Repeats** follow the phase the reading is in now. Acknowledging quiets an alarm for a set time; if the person is still low, it alerts again.
+- **Snooze** works per person. A more severe phase still alerts.
+- **No-readings alert** when data stops arriving.
+- **Quiet modes** (e.g. Work, Sleep) limit what alarms do on a schedule. A phase can be set to ignore quiet modes and snooze. Settings warns when a mode would silence urgent lows.
+
 ## Data sources
 
 | Source | Needs | Notes |
@@ -55,6 +65,14 @@ and synthetic data, for checking layouts and flows quickly:
 python3 tests/ui-harness/serve.py
 # then open http://localhost:8765/tests/ui-harness/  (everything at once)
 #       or http://localhost:8765/tests/ui-harness/badges.html  (every badge style)
+```
+
+### Alarm month simulator
+
+`src-tauri/src/sim.rs` runs the real alarm engine minute by minute over weeks of synthetic glucose, with a simulated user who reacts, snoozes or sleeps. Its regular tests run in CI. To run your own scenario and get a report:
+
+```bash
+cd src-tauri && CGM_SIM=scenario.json CGM_SIM_EVENTS=events.csv cargo test sim::tests::month -- --ignored --nocapture
 ```
 
 ### Performance tests (macOS)

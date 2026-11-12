@@ -139,8 +139,8 @@ pub struct PersonView {
 #[derive(Serialize, Clone)]
 pub struct Snapshot {
     pub demo_mode: bool,
-    /// Unix ms until which alarms are snoozed.
-    pub snoozed_until: Option<i64>,
+    /// Why the last alarm sound failed, if it did.
+    pub sound_error: Option<String>,
     pub quiet: Option<alarms::QuietView>,
     pub people: Vec<PersonView>,
     pub settings: Settings,
@@ -239,7 +239,7 @@ pub fn snapshot(state: &AppState) -> Snapshot {
     let now = clock.now;
     Snapshot {
         demo_mode: state.demo_mode,
-        snoozed_until: inner.engine.snoozed(now),
+        sound_error: crate::sound::last_error(),
         quiet: inner.engine.quiet(&inner.config.settings.alarms, clock),
         people: inner
             .config

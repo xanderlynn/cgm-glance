@@ -363,11 +363,11 @@ fn handle_menu(app: &AppHandle, id: &str) {
             refresh(app);
         }
         "snooze" => {
-            crate::alarms::with_engine(app, |e, s, now| e.snooze(s, now));
+            crate::alarms::with_engine(app, |e, s, now| e.snooze(s, None, now));
             refresh(app);
         }
         "ack" => {
-            crate::alarms::with_engine(app, |e, _, _| e.acknowledge(None));
+            crate::alarms::with_engine(app, |e, s, now| e.acknowledge(s, None, now));
             refresh(app);
         }
         "quit" => app.exit(0),

@@ -22,7 +22,16 @@ function card(p) {
       h(
         "div",
         { class: "grow" },
-        h("div", {}, h("strong", {}, p.name), " ", p.is_demo && h("span", { class: "demo-pill" }, "DEMO"), " ", statusChip(p)),
+        h(
+          "div",
+          {},
+          h("strong", {}, p.name),
+          " ",
+          p.is_demo && h("span", { class: "demo-pill" }, "DEMO"),
+          " ",
+          statusChip(p),
+          snap.settings.alarms.enabled && snap.settings.alarms.off_for.includes(p.id) && h("span", { class: "chip muted", title: "Alarms are off for this person" }, " alarms off"),
+        ),
         h("div", { class: "small muted" }, [p.source_label, ageText(p.age_min)].filter(Boolean).join(" · ")),
       ),
       h("div", {}, h("div", { class: "value" }, displayValue(p)), h("div", { class: "small muted sub" }, sub)),
@@ -34,10 +43,7 @@ function card(p) {
   );
 }
 
-function snoozedText() {
-  const t = snap?.snoozed_until;
-  return t ? ` · snoozed until ${new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
-}
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 function alarmBanner(p) {
   const a = p.alarm;
@@ -45,36 +51,46 @@ function alarmBanner(p) {
   return h(
     "div",
     { class: `alarm${a.acked ? " acked" : ""}`, role: a.acked ? null : "alert" },
-    h("span", { class: "grow" }, `${what} ${p.unit_label}`, a.acked ? " · acknowledged" : snoozedText()),
-    !a.acked && snoozedText() === "" && h("button", { onclick: () => invoke("snooze_alarms") }, "Snooze"),
+    h("span", { class: "grow" }, `${what} ${p.unit_label}`, a.acked ? " · acknowledged" : a.snoozed_until ? ` · snoozed until ${clock(a.snoozed_until)}` : ""),
+    !a.acked && !a.snoozed_until && h("button", { onclick: () => invoke("snooze_alarms", { id: p.id }) }, "Snooze"),
     !a.acked && h("button", { onclick: () => invoke("acknowledge_alarms", { id: p.id }) }, "Acknowledge"),
   );
 }
 
-function showQuiet(q) {
+function showQuiet(s) {
+  const q = s.quiet;
   const el = document.getElementById("quiet");
   el.hidden = false;
+  const quietBtn = !q?.manual_until && h("button", { onclick: () => invoke("set_quiet", { minutes: 60 }) }, "Quiet for 1 hour");
+  const soundErr = !!s.sound_error && h("div", { class: "error small", style: "width:100%" }, `Alarm sound failed: ${s.sound_error}`);
+  if (!s.settings.alarms.enabled) {
+    el.replaceChildren(h("span", { class: "grow" }, h("strong", {}, "Alarms are off"), " · turn them on in Settings → Alarms"));
+    return;
+  }
   if (!q) {
-    el.replaceChildren(h("span", { class: "grow muted" }, "Alarms: normal"), h("button", { onclick: () => invoke("set_quiet", { minutes: 60 }) }, "Quiet for 1 hour"));
+    el.replaceChildren(...[h("span", { class: "grow muted" }, "Alarms: normal"), quietBtn, soundErr].filter(Boolean));
     return;
   }
   const off = [!q.allow.flash && "flashing", !q.allow.notify && "notifications", !q.allow.sound && "sound"].filter(Boolean);
   el.replaceChildren(
-    h(
-      "span",
-      { class: "grow" },
-      h("strong", {}, q.name),
-      q.manual_until ? ` until ${new Date(q.manual_until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "",
-      off.length ? ` · ${off.join(", ")} off` : " · all alarm actions on",
-    ),
-    q.manual_until && h("button", { onclick: () => invoke("set_quiet", { minutes: 0 }) }, "End quiet"),
+    ...[
+      h(
+        "span",
+        { class: "grow" },
+        h("strong", {}, q.name),
+        q.manual_until ? ` until ${new Date(q.manual_until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "",
+        off.length ? ` · ${off.join(", ")} off` : " · all alarm actions on",
+      ),
+      q.manual_until ? h("button", { onclick: () => invoke("set_quiet", { minutes: 0 }) }, "End quiet") : quietBtn,
+      soundErr,
+    ].filter(Boolean),
   );
 }
 
 onSnapshot((s) => {
   snap = s;
   document.getElementById("demo").hidden = !s.demo_mode;
-  showQuiet(s.quiet);
+  showQuiet(s);
   document.getElementById("badge").textContent = s.settings.badge.enabled ? "Hide desktop badge" : "Show desktop badge";
   list.replaceChildren(
     ...(s.people.length
