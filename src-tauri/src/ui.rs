@@ -166,6 +166,10 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         if let Some(pid) = &tray.primary {
             list.sort_by_key(|v| &v.id != pid);
         }
+        if tray.mode == TrayMode::Single {
+            // Only the chosen person (or the first, if none is chosen or they were removed).
+            list.truncate(1);
+        }
         desired.push(("main".into(), list));
     }
 
@@ -173,6 +177,7 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
     let use_dot = !cfg!(windows) || tray.icon_style == IconStyle::Dot;
     for (id, list) in &desired {
         // A shared icon shows whoever needs attention most (main person on ties).
+        // In single mode the list holds just the chosen person.
         let first = list.iter().min_by_key(|v| urgency(v.status));
         let spec = IconSpec {
             status: first.map(|v| v.status).unwrap_or(Status::NoData),
@@ -194,7 +199,7 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         // Titles stay short: macOS hides menu-bar items that don't fit (e.g. beside the
         // notch). A shared icon names only the person it is colored for; the tooltip and
         // popup list everyone.
-        let several = snap.people.len() > 1;
+        let several = snap.people.len() > 1 && tray.show_initials;
         let title = match first {
             None => String::new(),
             Some(v) if several => format!("{} {}", v.initials, short_title(v)),

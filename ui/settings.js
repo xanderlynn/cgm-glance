@@ -459,11 +459,22 @@ function trayView() {
     "section",
     {},
     h("h2", {}, "Tray icon"),
-    field("With several people", seg([["per_person", "One icon per person"], ["primary", "One icon for everyone"]], t.mode, (v) => save((s) => (s.tray.mode = v)))),
-    h("p", { class: "small muted" }, "With one icon per person, turn a person's icon off under People → Edit."),
-    t.mode === "primary" &&
     field(
-      "Main person (shown on the single icon)",
+      "With several people",
+      seg([["per_person", "One icon per person"], ["primary", "One icon, most urgent"], ["single", "One icon, one person"]], t.mode, (v) => save((s) => (s.tray.mode = v))),
+    ),
+    h(
+      "p",
+      { class: "small muted" },
+      {
+        per_person: "Each person gets their own icon. Turn a person's icon off under People → Edit.",
+        primary: "One icon shows whoever needs attention most right now. Click it to see everyone.",
+        single: "One icon shows only the person you choose. Click it to see everyone.",
+      }[t.mode],
+    ),
+    t.mode === "single" &&
+    field(
+      "Person shown on the icon",
       h(
         "select",
         { id: "primary", onchange: (e) => save((s) => (s.tray.primary = e.target.value || null)) },
@@ -471,6 +482,7 @@ function trayView() {
         snap.people.map((p) => h("option", { value: p.id, selected: p.id === t.primary }, p.name)),
       ),
     ),
+    check("Show initials beside the number", t.show_initials, (v) => save((s) => (s.tray.show_initials = v)), "tray-initials"),
     field("Icon on Windows", seg([["number", "Color + number"], ["dot", "Color dot only"]], t.icon_style, (v) => save((s) => (s.tray.icon_style = v)))),
     h("p", { class: "small muted" }, "macOS and Linux always show a color dot with the number as text beside it. Hover (Windows) or click for details."),
   );
@@ -515,6 +527,7 @@ function badgeView() {
       h("p", { class: "small muted" }, "Shows a face instead of the number: 🙂 in range, 😬 high, 😟 low, 😱 urgent low, 😴 old reading. Hover the badge or open the tray to see the number."),
     h("h3", {}, "Size"),
     seg([["s", "Small"], ["m", "Medium"], ["l", "Large"]], b.size, set("size")),
+    check("Show initials", b.show_initials, set("show_initials"), "badge-initials"),
     h("h3", {}, "Layer"),
     seg([["top", "Always on top"], ["normal", "Normal"], ["bottom", "Behind windows"]], b.layer, set("layer")),
     h("h3", {}, "Position"),

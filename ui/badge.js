@@ -20,11 +20,11 @@ const FACE = {
   loading: "⏳",
 };
 
-function badge(p, style, k, several) {
+function badge(p, style, k, showWho) {
   const arrow = fresh(p) ? p.arrow : "";
   const v = displayValue(p);
   const age = shortAge(p);
-  const who = several && p.initials;
+  const who = showWho && p.initials;
   // Second line: the trend when the reading is fresh, otherwise how old it is.
   const extra = fresh(p) ? arrow : age;
   const cls = `b ${style} st-${p.status}${p.is_demo ? " demo" : ""}`;
@@ -52,7 +52,7 @@ onSnapshot((snap) => {
   const k = SIZE[b.size] ?? 1;
   const chosen = snap.people.filter((p) => b.people.length === 0 || b.people.includes(p.id));
   const shown = label === "badge-all" ? chosen : chosen.filter((p) => `badge-${p.id}` === label);
-  const several = snap.people.length > 1;
+  const showWho = snap.people.length > 1 && b.show_initials;
   document.body.style.opacity = b.opacity;
   // Dragging is allowed only in free position mode and when not locked.
   const drag = !b.lock && b.position === "free";
@@ -60,8 +60,8 @@ onSnapshot((snap) => {
   if (drag) root.setAttribute("data-tauri-drag-region", "");
   else root.removeAttribute("data-tauri-drag-region");
   // Rebuild only when something the badge shows changed.
-  const key = JSON.stringify([b.style, b.size, several, shown.map((p) => [p.name, p.initials, p.status, p.value, p.unit_label, p.arrow, p.age_min, p.is_demo])]);
+  const key = JSON.stringify([b.style, b.size, showWho, shown.map((p) => [p.name, p.initials, p.status, p.value, p.unit_label, p.arrow, p.age_min, p.is_demo])]);
   if (key === shownKey) return;
   shownKey = key;
-  root.replaceChildren(...shown.map((p) => badge(p, b.style, k, several)));
+  root.replaceChildren(...shown.map((p) => badge(p, b.style, k, showWho)));
 });

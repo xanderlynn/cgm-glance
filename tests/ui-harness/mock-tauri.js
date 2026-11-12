@@ -10,8 +10,8 @@
   const log = (window.__harnessLog = []);
 
   const defaults = () => ({
-    tray: { mode: "per_person", primary: null, icon_style: "number" },
-    badge: { enabled: true, people: [], combined: false, style: "pill", size: "m", layer: "top", position: "free", edge: "right", corner: "top_right", lock: false, click_through: false, opacity: 1 },
+    tray: { mode: "per_person", primary: null, icon_style: "number", show_initials: true },
+    badge: { enabled: true, people: [], combined: false, style: "pill", size: "m", layer: "top", position: "free", edge: "right", corner: "top_right", lock: false, click_through: false, opacity: 1, show_initials: true },
     demo_fast: true,
     autostart: false,
   });

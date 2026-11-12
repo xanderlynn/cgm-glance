@@ -85,7 +85,10 @@ fn yes() -> bool {
 pub enum TrayMode {
     #[default]
     PerPerson,
+    /// One icon showing whoever needs attention most.
     Primary,
+    /// One icon showing only the chosen person (`TraySettings::primary`).
+    Single,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -96,12 +99,25 @@ pub enum IconStyle {
     Dot,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct TraySettings {
     pub mode: TrayMode,
     pub primary: Option<String>,
     pub icon_style: IconStyle,
+    /// Initials beside the number in the menu-bar title.
+    pub show_initials: bool,
+}
+
+impl Default for TraySettings {
+    fn default() -> Self {
+        TraySettings {
+            mode: TrayMode::default(),
+            primary: None,
+            icon_style: IconStyle::default(),
+            show_initials: true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -185,6 +201,8 @@ pub struct BadgeSettings {
     pub lock: bool,
     pub click_through: bool,
     pub opacity: f64,
+    /// Initials on each badge when there are several people.
+    pub show_initials: bool,
 }
 
 impl Default for BadgeSettings {
@@ -202,6 +220,7 @@ impl Default for BadgeSettings {
             lock: false,
             click_through: false,
             opacity: 1.0,
+            show_initials: true,
         }
     }
 }
