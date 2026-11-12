@@ -21,6 +21,7 @@ uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["time", "sync", "macros"] }
 tauri-plugin-notification = "2"
 rodio = { version = "0.21.1", default-features = false, features = ["playback"] }
+chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }

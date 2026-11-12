@@ -409,13 +409,20 @@ mod tests {
 /// Acknowledges one person's alarm, or everyone's when `id` is None.
 #[tauri::command]
 pub fn acknowledge_alarms(app: AppHandle, id: Option<String>) {
-    crate::alarms::acknowledge(&app, id.as_deref());
+    crate::alarms::with_engine(&app, |e, _, _| e.acknowledge(id.as_deref()));
     ui::refresh(&app);
 }
 
 /// Silences alarms for the configured snooze time.
 #[tauri::command]
 pub fn snooze_alarms(app: AppHandle) {
-    crate::alarms::snooze(&app);
+    crate::alarms::with_engine(&app, |e, s, now| e.snooze(s, now));
+    ui::refresh(&app);
+}
+
+/// Starts a manual quiet period for `minutes`, or ends it with 0.
+#[tauri::command]
+pub fn set_quiet(app: AppHandle, minutes: u32) {
+    crate::alarms::with_engine(&app, |e, _, now| e.set_quiet(minutes, now));
     ui::refresh(&app);
 }

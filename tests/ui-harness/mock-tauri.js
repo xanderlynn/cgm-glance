@@ -17,6 +17,10 @@
       off_for: [],
       repeat_min: 5,
       snooze_min: 30,
+      quiet: [
+        { name: "Work", enabled: false, days: [0, 1, 2, 3, 4], start: 540, end: 1020, allow: { flash: true, notify: true, sound: false } },
+        { name: "Focus", enabled: false, days: [0, 1, 2, 3, 4], start: 540, end: 660, allow: { flash: true, notify: false, sound: false } },
+      ],
       low: [
         { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false, sound: "off" } },
         { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true, sound: "off" } },
@@ -107,7 +111,9 @@
     for (const k of ["style", "size"]) if (params.get(k)) settings.badge[k] = params.get(k);
     if (params.get("style")) settings.badge.people = [];
     const snoozed_until = state.snoozed_until > now ? state.snoozed_until : null;
-    return { demo_mode: true, snoozed_until, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
+    const manual = state.quiet_until > now ? state.quiet_until : null;
+    const quiet = manual ? { name: "Quiet for now", allow: { flash: true, notify: false, sound: false }, manual_until: manual } : null;
+    return { demo_mode: true, snoozed_until, quiet, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
   };
 
   // ----- events -----
@@ -169,6 +175,7 @@
     open_settings: ({ tab } = {}) => { if (page === "settings" && tab) emit("open-tab", tab); },
     hide_popup: () => {},
     quit_app: () => {},
+    set_quiet: ({ minutes }) => { state.quiet_until = minutes ? Date.now() + minutes * MIN : null; persist(); },
     snooze_alarms: () => { state.snoozed_until = Date.now() + state.settings.alarms.snooze_min * MIN; persist(); },
     acknowledge_alarms: ({ id }) => {
       state.acked ||= {};

@@ -655,6 +655,7 @@ function alarmsView() {
       h("p", { class: "small muted" }, "Phases escalate: the most extreme phase a reading is in decides what happens, and each new, more extreme phase alerts again. An alarm ends once the reading is 5 mg/dL back past its first phase. Readings older than 10 minutes never trigger an alarm."),
       ...phases("low", "Low alarm"),
       ...phases("high", "High alarm"),
+      ...quietSection(a, set),
       h("h3", {}, "Repeat"),
       field(
         "Alert again every (minutes) until acknowledged",
@@ -674,6 +675,92 @@ function alarmsView() {
       h("p", { class: "small muted" }, "Acknowledge or snooze an alarm from the readings popup or the tray menu. Notifications use your system's notification settings; check that CGM Glance is allowed to notify."),
     ),
   );
+}
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const minutes = (t) => {
+  const [hh, mm] = t.split(":").map(Number);
+  return Number.isFinite(hh) && Number.isFinite(mm) ? hh * 60 + mm : null;
+};
+
+function quietSection(a, set) {
+  const activeNames = (snap.quiet?.name || "").split(" + ");
+  const modeRow = (m, i) => {
+    const id = `quiet-${i}`;
+    const edit = (fn) => set((al) => fn(al.quiet[i]));
+    const time = (key, label) =>
+      h("input", {
+        type: "time",
+        value: hhmm(m[key]),
+        "aria-label": label,
+        "data-key": `${id}-${key}`,
+        onchange: (e) => {
+          const v = minutes(e.target.value);
+          if (v === null) return render();
+          edit((q) => (q[key] = v));
+        },
+      });
+    const top = h(
+      "div",
+      { class: "line" },
+      h("input", { type: "checkbox", checked: m.enabled, "aria-label": "Mode on", "data-key": `${id}-on`, onchange: (e) => edit((q) => (q.enabled = e.target.checked)) }),
+      h("input", { type: "text", value: m.name, maxlength: 30, "aria-label": "Mode name", "data-key": `${id}-name`, class: "name", onchange: (e) => edit((q) => (q.name = e.target.value)) }),
+      m.enabled && activeNames.includes(m.name) && h("span", { class: "tag" }, "On now"),
+      h("span", { class: "grow" }),
+      h("button", { "aria-label": "Remove this mode", title: "Remove this mode", onclick: () => set((al) => al.quiet.splice(i, 1)) }, "✕"),
+    );
+    const when = h(
+      "div",
+      { class: "line then" },
+      h(
+        "div",
+        { class: "days", role: "group", "aria-label": "Days" },
+        DAYS.map((d, n) =>
+          h(
+            "button",
+            {
+              "aria-pressed": String(m.days.includes(n)),
+              onclick: () => edit((q) => (q.days = q.days.includes(n) ? q.days.filter((x) => x !== n) : [...q.days, n].sort())),
+            },
+            d,
+          ),
+        ),
+      ),
+      time("start", "Start time"),
+      h("span", { class: "muted" }, "to"),
+      time("end", "End time"),
+      m.end < m.start && h("span", { class: "muted small" }, "(overnight)"),
+      m.end === m.start && h("span", { class: "muted small" }, "(all day)"),
+    );
+    const allow = h(
+      "div",
+      { class: "line then" },
+      h("span", { class: "muted small" }, "Allows:"),
+      check("Flash", m.allow.flash, (v) => edit((q) => (q.allow.flash = v)), `${id}-flash`),
+      check("Notify", m.allow.notify, (v) => edit((q) => (q.allow.notify = v)), `${id}-notify`),
+      check("Sound", m.allow.sound, (v) => edit((q) => (q.allow.sound = v)), `${id}-sound`),
+    );
+    return h("div", { class: `phase${m.enabled ? "" : " off"}` }, top, when, allow);
+  };
+  return [
+    h("h3", {}, "Quiet modes"),
+    h(
+      "p",
+      { class: "small muted" },
+      "While a mode is on, alarms only do what it allows. Modes apply to every alarm, including urgent lows. A night window (e.g. 22:00 to 07:00) belongs to the day it starts. \"Quiet for 1 hour\" in the tray menu or popup stops notifications and sound; flashing continues.",
+    ),
+    snap.quiet && h("div", { class: "note warn small" }, `On now: ${snap.quiet.name}`),
+    ...a.quiet.map(modeRow),
+    a.quiet.length < 8 &&
+      h(
+        "div",
+        {},
+        h("button", {
+          onclick: () => set((al) => al.quiet.push({ name: "Sleep", enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: 22 * 60, end: 7 * 60, allow: { flash: true, notify: false, sound: false } })),
+        }, "+ Add mode"),
+      ),
+  ];
 }
 
 // ---------- General / About ----------
