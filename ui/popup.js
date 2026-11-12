@@ -57,6 +57,24 @@ function alarmBanner(p) {
   );
 }
 
+function showUpdate(u) {
+  const el = document.getElementById("update");
+  const st = u.status;
+  el.hidden = !["available", "downloading", "installing"].includes(st.state);
+  if (el.hidden) return;
+  el.replaceChildren(
+    ...[
+      h(
+        "span",
+        { class: "grow" },
+        st.state === "available" ? `Update ${st.version} is available` : st.state === "installing" ? "Installing the update…" : `Downloading the update${st.percent == null ? "…" : ` ${st.percent}%`}`,
+      ),
+      st.state === "available" && h("button", { onclick: () => invoke("open_settings", { tab: "general" }) }, "Details"),
+      st.state === "available" && h("button", { class: "primary", onclick: () => invoke("install_update") }, "Install and restart"),
+    ].filter(Boolean),
+  );
+}
+
 function showQuiet(s) {
   const q = s.quiet;
   const el = document.getElementById("quiet");
@@ -91,6 +109,7 @@ onSnapshot((s) => {
   snap = s;
   document.getElementById("demo").hidden = !s.demo_mode;
   showQuiet(s);
+  showUpdate(s.update);
   document.getElementById("badge").textContent = s.settings.badge.enabled ? "Hide desktop badge" : "Show desktop badge";
   list.replaceChildren(
     ...(s.people.length

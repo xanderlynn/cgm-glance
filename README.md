@@ -83,7 +83,7 @@ reports CPU and memory. See the `performance-test` issues for the latest results
 ## Build from source
 
 Needs [Rust](https://rustup.rs) and, on Linux:
-`libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config`.
+`libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev libasound2-dev pkg-config`.
 
 ```bash
 cd src-tauri
@@ -93,9 +93,28 @@ cargo install tauri-cli --version "^2" --locked
 cargo tauri build     # installers in src-tauri/target/release/bundle
 ```
 
-Releases: push a tag like `v0.1.0` and GitHub Actions builds installers for all three
-systems into a draft release. Builds are not code-signed, so Windows SmartScreen and macOS
-Gatekeeper will warn on first launch.
+`cargo tauri build` also signs the in-app update bundles, so it needs your update key:
+`TAURI_SIGNING_PRIVATE_KEY` (the key file's path or contents) and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Without them, use `cargo tauri build --no-bundle` for
+a plain build.
+
+### Releases and in-app updates
+
+1. Bump `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`.
+2. Push a tag like `v0.2.0`. GitHub Actions builds installers for all three systems, signs the
+   update bundles, and uploads them with `latest.json` to a **draft** release.
+3. Publish the draft. Running copies find it within a day (at start-up, then daily) or
+   straight away with **Settings → General → Check now** or **Check for updates…** in the tray
+   menu. They show the notes and offer **Install and restart**.
+
+The app installs an update only if its signature matches the public key in
+`tauri.conf.json`. The private key never goes in the repo. It lives in the
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets, and
+in a safe place of your own. If you lose it, installed copies can't verify new updates and
+need a manual reinstall.
+
+Installers are not yet code-signed for Windows (Authenticode) or notarized for macOS, so
+SmartScreen and Gatekeeper warn on first install.
 
 ## Layout
 

@@ -426,3 +426,15 @@ pub fn set_quiet(app: AppHandle, minutes: u32) {
     crate::alarms::with_engine(&app, |e, _, now| e.set_quiet(minutes, now));
     ui::refresh(&app);
 }
+
+/// Checks GitHub Releases for a newer version now.
+#[tauri::command]
+pub fn check_update(app: AppHandle) {
+    crate::updater::check(&app, true);
+}
+
+/// Downloads, verifies and installs the update found by the last check, then restarts.
+#[tauri::command]
+pub fn install_update(app: AppHandle) {
+    crate::updater::install(&app);
+}

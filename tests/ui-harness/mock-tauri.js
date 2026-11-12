@@ -37,6 +37,7 @@
     },
     demo_fast: true,
     autostart: false,
+    auto_update: true,
   });
   const person = (id, name, initials, color, scenario) => ({
     id, name, initials, color, units: "mgdl", thresholds: { urgent_low: 55, low: 70, high: 180 },
@@ -117,7 +118,7 @@
     if (params.get("style")) settings.badge.people = [];
     const manual = state.quiet_until > now ? state.quiet_until : null;
     const quiet = manual ? { name: "Quiet for now", allow: { flash: true, notify: false, sound: false }, manual_until: manual } : null;
-    return { demo_mode: true, sound_error: null, quiet, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
+    return { demo_mode: true, sound_error: null, quiet, update: { current: "0.1.0", status: state.update || { state: "idle" } }, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
   };
 
   // ----- events -----
@@ -179,6 +180,21 @@
     open_settings: ({ tab } = {}) => { if (page === "settings" && tab) emit("open-tab", tab); },
     hide_popup: () => {},
     quit_app: () => {},
+    // Fake updater: a check finds 0.2.0; installing counts up and "restarts".
+    check_update: () => {
+      state.update = { state: "checking" };
+      persist();
+      setTimeout(() => { state.update = { state: "available", version: "0.2.0", notes: "Escalating alarms\nQuiet modes\nIn-app updates" }; persist(); }, 600);
+    },
+    install_update: () => {
+      let p = 0;
+      const t = setInterval(() => {
+        p += 25;
+        state.update = p <= 100 ? { state: "downloading", percent: p } : { state: "installing" };
+        if (p > 100) { clearInterval(t); setTimeout(() => { state.update = { state: "up_to_date", checked_ms: Date.now() }; persist(); }, 800); }
+        persist();
+      }, 300);
+    },
     set_quiet: ({ minutes }) => { state.quiet_until = minutes ? Date.now() + minutes * MIN : null; persist(); },
     snooze_alarms: ({ id }) => {
       state.snoozed ||= {};

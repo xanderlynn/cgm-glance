@@ -225,7 +225,7 @@ impl Default for BadgeSettings {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
     pub tray: TraySettings,
@@ -234,6 +234,21 @@ pub struct Settings {
     /// Demo sources produce a new reading every 10 s instead of every 5 min.
     pub demo_fast: bool,
     pub autostart: bool,
+    /// Check GitHub Releases for a new version shortly after start and then daily.
+    pub auto_update: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            tray: TraySettings::default(),
+            badge: BadgeSettings::default(),
+            alarms: Default::default(),
+            demo_fast: false,
+            autostart: false,
+            auto_update: true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]

@@ -53,6 +53,7 @@ pub struct Inner {
     pub engine: alarms::Engine,
     /// Flashing tray icons are drawn dimmed while this is true.
     pub flash_dim: bool,
+    pub update: crate::updater::UpdateState,
     pub flasher_running: bool,
 }
 
@@ -142,6 +143,7 @@ pub struct Snapshot {
     /// Why the last alarm sound failed, if it did.
     pub sound_error: Option<String>,
     pub quiet: Option<alarms::QuietView>,
+    pub update: crate::updater::UpdateView,
     pub people: Vec<PersonView>,
     pub settings: Settings,
     pub config_people: Vec<Person>,
@@ -241,6 +243,7 @@ pub fn snapshot(state: &AppState) -> Snapshot {
         demo_mode: state.demo_mode,
         sound_error: crate::sound::last_error(),
         quiet: inner.engine.quiet(&inner.config.settings.alarms, clock),
+        update: crate::updater::view(&inner.update),
         people: inner
             .config
             .people
