@@ -19,14 +19,14 @@
     // Same sizes as ui.rs badge_logical_size. Combined window, all people.
     const size = (style, sz, n) => {
       const k = { s: 0.8, m: 1, l: 1.3 }[sz];
-      const [w, h] = { dot: [44, 44], number: [68, 68], arrow: [108, 68], age: [190, 48], card: [240, 120] }[style];
+      const [w, h] = { pill: [156, 34], ring: [64, 64], faces: [64, 64] }[style];
       return [Math.round(w * k) + 16, Math.round(Math.round(h * k) * n + 8 * (n - 1)) + 16];
     };
     const st = JSON.parse(localStorage.getItem("cgm-harness-state"));
     const n = st.people.length;
     const sizes = new URLSearchParams(location.search).get("sizes")?.split(",") ?? ["m"];
     for (const wall of ["dark", "light"])
-      for (const style of ["dot", "number", "arrow", "age", "card"])
+      for (const style of ["pill", "ring", "faces"])
         for (const sz of sizes) {
           const [w, h] = size(style, sz, n);
           const f = document.createElement("figure");

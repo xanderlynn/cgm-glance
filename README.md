@@ -11,10 +11,14 @@ glucose reading for one or more people with T1D, plus an optional movable deskto
 - **Tray icon:** on Windows, the number is drawn inside the icon, colored by range, with a
   notch for the trend. On macOS and Linux it's a colored dot with the number beside it.
   Hover (Windows) or click to see everyone.
-- **Desktop badge (optional):** turn it on in Settings → Desktop badge. Pick a style (color
-  only, number, arrow, reading age, or a card with a 3-hour trend), size, layer (always on
-  top, normal, behind windows), and position (drag freely, snap to an edge, or a corner).
-  It can be locked in place.
+- **Desktop badge (optional):** turn it on in Settings → Desktop badge. Pick a style:
+  - **Pill:** small dark capsule with a colored dot, the number and the trend.
+  - **Ring:** the number inside a colored circle.
+  - **Faces:** a discreet emoji instead of the number (🙂 in range, 😬 high, 😟 low,
+    😱 urgent low, 😴 old reading). Hover the badge or open the tray to see the number.
+
+  Also choose size, layer (always on top, normal, behind windows), and position (drag
+  freely, snap to an edge, or a corner). It can be locked in place.
 - **Several people:** one tray icon each or one combined icon; one badge each or combined.
 - **Old data is obvious:** grey after 10 minutes, the number is hidden after 20.
 

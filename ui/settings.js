@@ -510,7 +510,9 @@ function badgeView() {
     people,
     seg([[false, "One badge each"], [true, "Combined"]], b.combined, set("combined")),
     h("h3", {}, "Style"),
-    seg([["dot", "Color only"], ["number", "Color + number"], ["arrow", "+ Trend arrow"], ["age", "+ Reading age"], ["card", "Card with trend"]], b.style, set("style")),
+    seg([["pill", "Pill"], ["ring", "Ring"], ["faces", "Faces (no number)"]], b.style, set("style")),
+    b.style === "faces" &&
+      h("p", { class: "small muted" }, "Shows a face instead of the number: 🙂 in range, 😬 high, 😟 low, 😱 urgent low, 😴 old reading. Hover the badge or open the tray to see the number."),
     h("h3", {}, "Size"),
     seg([["s", "Small"], ["m", "Medium"], ["l", "Large"]], b.size, set("size")),
     h("h3", {}, "Layer"),

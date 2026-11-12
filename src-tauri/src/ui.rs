@@ -374,11 +374,9 @@ pub fn badge_logical_size(style: BadgeStyle, size: BadgeSize, count: usize) -> (
         BadgeSize::L => 1.3,
     };
     let (w, h): (f64, f64) = match style {
-        BadgeStyle::Dot => (44.0, 44.0),
-        BadgeStyle::Number => (68.0, 68.0),
-        BadgeStyle::Arrow => (108.0, 68.0),
-        BadgeStyle::Age => (190.0, 48.0),
-        BadgeStyle::Card => (240.0, 120.0),
+        BadgeStyle::Pill => (156.0, 34.0),
+        BadgeStyle::Ring => (64.0, 64.0),
+        BadgeStyle::Faces => (64.0, 64.0),
     };
     let n = count.max(1) as f64;
     // 8 px around each badge leaves room for its shadow.
@@ -714,8 +712,8 @@ mod tests {
 
     #[test]
     fn sizes_grow_with_people() {
-        let (_, h1) = badge_logical_size(BadgeStyle::Number, BadgeSize::M, 1);
-        let (_, h2) = badge_logical_size(BadgeStyle::Number, BadgeSize::M, 2);
+        let (_, h1) = badge_logical_size(BadgeStyle::Ring, BadgeSize::M, 1);
+        let (_, h2) = badge_logical_size(BadgeStyle::Ring, BadgeSize::M, 2);
         assert!(h2 > h1);
     }
 }

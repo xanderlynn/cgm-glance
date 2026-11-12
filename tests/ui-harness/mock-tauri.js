@@ -11,7 +11,7 @@
 
   const defaults = () => ({
     tray: { mode: "per_person", primary: null, icon_style: "number" },
-    badge: { enabled: true, people: [], combined: false, style: "number", size: "m", layer: "top", position: "free", edge: "right", corner: "top_right", lock: false, click_through: false, opacity: 1 },
+    badge: { enabled: true, people: [], combined: false, style: "pill", size: "m", layer: "top", position: "free", edge: "right", corner: "top_right", lock: false, click_through: false, opacity: 1 },
     demo_fast: true,
     autostart: false,
   });

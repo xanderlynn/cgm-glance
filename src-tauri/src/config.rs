@@ -107,12 +107,19 @@ pub struct TraySettings {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum BadgeStyle {
-    Dot,
+    /// Older versions had more styles; they all open as Pill so no setup is lost.
     #[default]
-    Number,
-    Arrow,
-    Age,
-    Card,
+    #[serde(
+        alias = "dot",
+        alias = "number",
+        alias = "arrow",
+        alias = "age",
+        alias = "card"
+    )]
+    Pill,
+    Ring,
+    /// Emoji face instead of the number. The number shows on hover and in the tray.
+    Faces,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -186,7 +193,7 @@ impl Default for BadgeSettings {
             enabled: false,
             people: vec![],
             combined: false,
-            style: BadgeStyle::Number,
+            style: BadgeStyle::Pill,
             size: BadgeSize::M,
             layer: Layer::Top,
             position: PositionMode::Free,
@@ -313,6 +320,17 @@ mod tests {
                 !json.contains(word),
                 "config JSON must never contain '{word}'"
             );
+        }
+    }
+
+    #[test]
+    fn old_badge_styles_become_pill() {
+        for old in ["dot", "number", "arrow", "age", "card"] {
+            let c: Config = serde_json::from_str(&format!(
+                r#"{{"settings":{{"badge":{{"style":"{old}"}}}}}}"#
+            ))
+            .unwrap();
+            assert_eq!(c.settings.badge.style, BadgeStyle::Pill);
         }
     }
 
