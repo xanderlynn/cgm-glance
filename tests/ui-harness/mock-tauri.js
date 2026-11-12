@@ -16,14 +16,15 @@
       enabled: true,
       off_for: [],
       repeat_min: 5,
+      snooze_min: 30,
       low: [
-        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false } },
-        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true } },
-        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true, notify: true } },
+        { enabled: true, mgdl: 75, trend_only: true, actions: { flash: true, notify: false, sound: "off" } },
+        { enabled: true, mgdl: 70, trend_only: false, actions: { flash: true, notify: true, sound: "off" } },
+        { enabled: true, mgdl: 65, trend_only: false, actions: { flash: true, notify: true, sound: "urgent" } },
       ],
       high: [
-        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true, notify: false } },
-        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true, notify: true } },
+        { enabled: true, mgdl: 200, trend_only: true, actions: { flash: true, notify: false, sound: "off" } },
+        { enabled: true, mgdl: 250, trend_only: false, actions: { flash: true, notify: true, sound: "off" } },
       ],
     },
     demo_fast: true,
@@ -97,7 +98,7 @@
     const hit = low || high;
     if (!hit) return null;
     const acked = (state.acked || {})[p.id] === hit.mgdl;
-    return { kind: low ? "low" : "high", threshold: fmt(hit.mgdl, p.units), flash: !acked && hit.actions.flash, acked, _mgdl: hit.mgdl };
+    return { kind: low ? "low" : "high", threshold: fmt(hit.mgdl, p.units), flash: !acked && !(state.snoozed_until > Date.now()) && hit.actions.flash, acked, _mgdl: hit.mgdl };
   }
   const snapshot = () => {
     const now = Date.now();
@@ -105,7 +106,8 @@
     // Gallery overrides: badge.html?style=card&size=l shows one style regardless of saved settings.
     for (const k of ["style", "size"]) if (params.get(k)) settings.badge[k] = params.get(k);
     if (params.get("style")) settings.badge.people = [];
-    return { demo_mode: true, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
+    const snoozed_until = state.snoozed_until > now ? state.snoozed_until : null;
+    return { demo_mode: true, snoozed_until, people: state.people.map((p) => view(p, now)), settings, config_people: structuredClone(state.people) };
   };
 
   // ----- events -----
@@ -167,6 +169,7 @@
     open_settings: ({ tab } = {}) => { if (page === "settings" && tab) emit("open-tab", tab); },
     hide_popup: () => {},
     quit_app: () => {},
+    snooze_alarms: () => { state.snoozed_until = Date.now() + state.settings.alarms.snooze_min * MIN; persist(); },
     acknowledge_alarms: ({ id }) => {
       state.acked ||= {};
       for (const v of snapshot().people) if (v.alarm && (!id || v.id === id)) state.acked[v.id] = v.alarm._mgdl;
