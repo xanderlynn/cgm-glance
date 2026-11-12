@@ -49,15 +49,11 @@ pub struct Inner {
     pub tray_looks: HashMap<String, String>,
     /// When Dexcom last rejected a password in the setup wizard.
     pub last_auth_fail: Option<Instant>,
-    /// Alarms that have fired and not cleared, per person and kind.
-    pub alarms: HashMap<(String, alarms::Kind), alarms::Active>,
+    /// Alarm state: active alarms, snooze and manual quiet.
+    pub engine: alarms::Engine,
     /// Flashing tray icons are drawn dimmed while this is true.
     pub flash_dim: bool,
     pub flasher_running: bool,
-    /// Alarms stay quiet until this time (ms), unless they escalate.
-    pub snoozed_until: Option<i64>,
-    /// Manual "Quiet for 1 hour" end time (ms).
-    pub quiet_until: Option<i64>,
 }
 
 pub struct AppState {
@@ -239,16 +235,20 @@ pub fn person_view(
 
 pub fn snapshot(state: &AppState) -> Snapshot {
     let inner = state.lock();
-    let now = model::now_ms();
+    let clock = alarms::Clock::local();
+    let now = clock.now;
     Snapshot {
         demo_mode: state.demo_mode,
-        snoozed_until: inner.snoozed_until.filter(|&t| now < t),
-        quiet: alarms::quiet_now(&inner, now),
+        snoozed_until: inner.engine.snoozed(now),
+        quiet: inner.engine.quiet(&inner.config.settings.alarms, clock),
         people: inner
             .config
             .people
             .iter()
-            .map(|p| person_view(p, inner.runtime.get(&p.id), alarms::view(&inner, p), now))
+            .map(|p| {
+                let alarm = inner.engine.view(&inner.config.settings.alarms, p, clock);
+                person_view(p, inner.runtime.get(&p.id), alarm, now)
+            })
             .collect(),
         settings: inner.config.settings.clone(),
         config_people: inner.config.people.clone(),

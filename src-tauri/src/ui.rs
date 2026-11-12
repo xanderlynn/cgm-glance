@@ -359,15 +359,15 @@ fn handle_menu(app: &AppHandle, id: &str) {
             refresh(app);
         }
         "quiet" => {
-            crate::alarms::set_quiet(app, 60);
+            crate::alarms::with_engine(app, |e, _, now| e.set_quiet(60, now));
             refresh(app);
         }
         "snooze" => {
-            crate::alarms::snooze(app);
+            crate::alarms::with_engine(app, |e, s, now| e.snooze(s, now));
             refresh(app);
         }
         "ack" => {
-            crate::alarms::acknowledge(app, None);
+            crate::alarms::with_engine(app, |e, _, _| e.acknowledge(None));
             refresh(app);
         }
         "quit" => app.exit(0),

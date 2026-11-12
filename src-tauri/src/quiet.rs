@@ -25,7 +25,7 @@ impl Default for Allowed {
 }
 
 impl Allowed {
-    fn and(self, o: Allowed) -> Allowed {
+    pub fn and(self, o: Allowed) -> Allowed {
         Allowed {
             flash: self.flash && o.flash,
             notify: self.notify && o.notify,

@@ -12,6 +12,7 @@ use crate::sound::{self, Sound};
 use crate::state::{AppState, Inner};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
 pub const MAX_PHASES: usize = 6;
@@ -263,59 +264,187 @@ pub struct AlarmView {
     pub acked: bool,
 }
 
-pub fn snoozed(inner: &Inner, now: i64) -> bool {
-    inner.snoozed_until.is_some_and(|t| now < t)
-}
-
 /// The quiet modes on right now (scheduled or manual) and what alarms may still do.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct QuietView {
-    /// e.g. "Work" or "Quiet for 1 hour".
+    /// e.g. "Work" or "Quiet for now".
     pub name: String,
     pub allow: Allowed,
     /// Unix ms when a manual quiet ends.
     pub manual_until: Option<i64>,
 }
 
-pub fn quiet_now(inner: &Inner, now: i64) -> Option<QuietView> {
-    let (weekday, minute) = quiet::local_now();
-    let scheduled = quiet::active(&inner.config.settings.alarms.quiet, weekday, minute);
-    let manual = inner.quiet_until.filter(|&t| now < t);
-    let mut names: Vec<String> = scheduled.as_ref().map(|s| s.0.clone()).unwrap_or_default();
-    let mut allow = scheduled.map(|s| s.1).unwrap_or_default();
-    if manual.is_some() {
-        names.push("Quiet for now".into());
-        allow = Allowed {
-            flash: allow.flash && quiet::MANUAL.flash,
-            notify: allow.notify && quiet::MANUAL.notify,
-            sound: allow.sound && quiet::MANUAL.sound,
-        };
+/// Something to tell the user now: an alarm fired or repeated. `actions` already
+/// leave out whatever the current quiet modes don't allow.
+#[derive(Debug, Clone)]
+// `person_id`, `kind` and `mgdl` are read by the month simulator.
+#[allow(dead_code)]
+pub struct Alert {
+    pub person_id: String,
+    pub kind: Kind,
+    pub mgdl: u16,
+    pub title: String,
+    pub body: String,
+    pub actions: Actions,
+}
+
+/// A point in time, in both forms the alarms need.
+#[derive(Clone, Copy, Debug)]
+pub struct Clock {
+    pub now: i64,
+    /// 0 = Monday.
+    pub weekday: u8,
+    /// Minutes after local midnight.
+    pub minute: u16,
+}
+
+impl Clock {
+    pub fn local() -> Clock {
+        let (weekday, minute) = quiet::local_now();
+        Clock {
+            now: model::now_ms(),
+            weekday,
+            minute,
+        }
     }
-    (!names.is_empty()).then(|| QuietView {
-        name: names.join(" + "),
-        allow,
-        manual_until: manual,
-    })
 }
 
-fn allowed_now(inner: &Inner, now: i64) -> Allowed {
-    quiet_now(inner, now).map(|q| q.allow).unwrap_or_default()
+/// All alarm state. Pure logic over an explicit clock, so the month simulator can
+/// drive exactly what the app runs.
+#[derive(Default, Debug)]
+pub struct Engine {
+    /// Alarms that have fired and not cleared, per person and kind.
+    pub active: HashMap<(String, Kind), Active>,
+    /// Alarms stay quiet until this time (ms), unless they escalate.
+    pub snoozed_until: Option<i64>,
+    /// Manual "Quiet for 1 hour" end time (ms).
+    pub quiet_until: Option<i64>,
 }
 
-pub fn view(inner: &Inner, p: &Person) -> Option<AlarmView> {
-    let settings = &inner.config.settings.alarms;
-    let now = model::now_ms();
-    let quiet = snoozed(inner, now) || !allowed_now(inner, now).flash;
-    Kind::ALL.into_iter().find_map(|kind| {
-        let a = inner.alarms.get(&(p.id.clone(), kind))?;
-        let phase = phase_of(settings.phases(kind), a);
-        Some(AlarmView {
-            kind,
-            threshold: threshold_text(a.mgdl, p.units),
-            flash: !a.acked && !quiet && phase.is_some_and(|ph| ph.actions.flash),
-            acked: a.acked,
+impl Engine {
+    pub fn snoozed(&self, now: i64) -> Option<i64> {
+        self.snoozed_until.filter(|&t| now < t)
+    }
+
+    pub fn quiet(&self, s: &AlarmSettings, c: Clock) -> Option<QuietView> {
+        let scheduled = quiet::active(&s.quiet, c.weekday, c.minute);
+        let manual = self.quiet_until.filter(|&t| c.now < t);
+        let mut names: Vec<String> = scheduled.as_ref().map(|q| q.0.clone()).unwrap_or_default();
+        let mut allow = scheduled.map(|q| q.1).unwrap_or_default();
+        if manual.is_some() {
+            names.push("Quiet for now".into());
+            allow = allow.and(quiet::MANUAL);
+        }
+        (!names.is_empty()).then(|| QuietView {
+            name: names.join(" + "),
+            allow,
+            manual_until: manual,
         })
-    })
+    }
+
+    fn allowed(&self, s: &AlarmSettings, c: Clock) -> Allowed {
+        self.quiet(s, c).map(|q| q.allow).unwrap_or_default()
+    }
+
+    /// Flashing is on for an unacknowledged alarm whose phase flashes, unless snoozed
+    /// or a quiet mode doesn't allow it.
+    fn flashes(&self, s: &AlarmSettings, kind: Kind, a: &Active, c: Clock) -> bool {
+        !a.acked
+            && self.snoozed(c.now).is_none()
+            && self.allowed(s, c).flash
+            && phase_of(s.phases(kind), a).is_some_and(|p| p.actions.flash)
+    }
+
+    pub fn view(&self, s: &AlarmSettings, p: &Person, c: Clock) -> Option<AlarmView> {
+        Kind::ALL.into_iter().find_map(|kind| {
+            let a = self.active.get(&(p.id.clone(), kind))?;
+            Some(AlarmView {
+                kind,
+                threshold: threshold_text(a.mgdl, p.units),
+                flash: self.flashes(s, kind, a, c),
+                acked: a.acked,
+            })
+        })
+    }
+
+    pub fn any_flashing(&self, s: &AlarmSettings, c: Clock) -> bool {
+        self.active
+            .iter()
+            .any(|((_, kind), a)| self.flashes(s, *kind, a, c))
+    }
+
+    /// Runs every alarm against each person's latest reading and returns what to
+    /// alert now.
+    pub fn tick<'a>(
+        &mut self,
+        s: &AlarmSettings,
+        people: &[Person],
+        latest: impl Fn(&str) -> Option<&'a Reading>,
+        c: Clock,
+    ) -> Vec<Alert> {
+        let now = c.now;
+        let allow = self.allowed(s, c);
+        let mut alerts = vec![];
+        self.active
+            .retain(|(id, _), _| people.iter().any(|p| &p.id == id));
+        for p in people {
+            let latest = latest(&p.id);
+            for kind in Kind::ALL {
+                let key = (p.id.clone(), kind);
+                let mut active = self.active.remove(&key);
+                if s.on_for(&p.id) {
+                    let phases = s.phases(kind);
+                    let fired = step(kind, phases, &mut active, latest, now).cloned();
+                    // A more severe phase always alerts and ends a snooze.
+                    if fired.is_some() {
+                        self.snoozed_until = None;
+                    }
+                    let snoozed = self.snoozed(now).is_some();
+                    let repeat = active.as_mut().and_then(|a| {
+                        if fired.is_none() && !snoozed && repeat_due(a, s.repeat_min, now) {
+                            a.alerted_ms = now;
+                            phase_of(phases, a).cloned()
+                        } else {
+                            None
+                        }
+                    });
+                    if let (Some(ph), Some(r)) = (fired.or(repeat), latest) {
+                        let mut alert = alert_for(p, kind, &ph, r);
+                        alert.actions.notify &= allow.notify;
+                        if !allow.sound {
+                            alert.actions.sound = Sound::Off;
+                        }
+                        alert.actions.flash &= allow.flash;
+                        alerts.push(alert);
+                    }
+                } else {
+                    active = None;
+                }
+                if let Some(a) = active {
+                    self.active.insert(key, a);
+                }
+            }
+        }
+        alerts
+    }
+
+    /// Acknowledges one person's alarms, or everyone's when `id` is None.
+    pub fn acknowledge(&mut self, id: Option<&str>) {
+        for ((pid, _), a) in self.active.iter_mut() {
+            if id.map_or(true, |id| id == pid) {
+                a.acked = true;
+            }
+        }
+    }
+
+    pub fn snooze(&mut self, s: &AlarmSettings, now: i64) {
+        self.snoozed_until = Some(now + s.snooze_min as i64 * 60_000);
+    }
+
+    /// Starts a manual quiet period, or ends it when `minutes` is 0.
+    pub fn set_quiet(&mut self, minutes: u32, now: i64) {
+        self.quiet_until = (minutes > 0).then(|| now + minutes.min(24 * 60) as i64 * 60_000);
+    }
 }
 
 fn threshold_text(mgdl: u16, units: Units) -> String {
@@ -325,24 +454,6 @@ fn threshold_text(mgdl: u16, units: Units) -> String {
     }
 }
 
-pub fn any_flashing(inner: &Inner) -> bool {
-    let settings = &inner.config.settings.alarms;
-    let now = model::now_ms();
-    !snoozed(inner, now)
-        && allowed_now(inner, now).flash
-        && inner.alarms.iter().any(|((_, kind), a)| {
-            !a.acked && phase_of(settings.phases(*kind), a).is_some_and(|p| p.actions.flash)
-        })
-}
-
-/// Something to tell the user now: an alarm fired or repeated.
-#[derive(Debug, Clone)]
-pub struct Alert {
-    pub title: String,
-    pub body: String,
-    pub actions: Actions,
-}
-
 fn alert_for(p: &Person, kind: Kind, phase: &Phase, r: &Reading) -> Alert {
     let (word, edge) = match kind {
         Kind::Low => ("low", "at or below"),
@@ -350,6 +461,9 @@ fn alert_for(p: &Person, kind: Kind, phase: &Phase, r: &Reading) -> Alert {
     };
     let units = p.units;
     Alert {
+        person_id: p.id.clone(),
+        kind,
+        mgdl: phase.mgdl,
         title: format!("{} is {word}", p.name),
         body: format!(
             "{} {} {} · alarm {edge} {}",
@@ -362,67 +476,41 @@ fn alert_for(p: &Person, kind: Kind, phase: &Phase, r: &Reading) -> Alert {
     }
 }
 
+// ---------- App glue ----------
+
 /// Runs every alarm against the latest readings. Called before each refresh.
 pub fn check(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let now = model::now_ms();
-    let mut alerts = vec![];
-    let allow;
-    let flashing = {
+    let c = Clock::local();
+    let (alerts, flashing) = {
         let mut guard = state.lock();
         let inner = &mut *guard;
         let settings = &inner.config.settings.alarms;
-        let people = &inner.config.people;
-        let mut snoozed = snoozed(inner, now);
-        allow = allowed_now(inner, now);
-        inner
-            .alarms
-            .retain(|(id, _), _| people.iter().any(|p| &p.id == id));
-        for p in people {
-            let latest = inner.runtime.get(&p.id).and_then(|r| r.readings.last());
-            for kind in Kind::ALL {
-                let key = (p.id.clone(), kind);
-                let mut active = inner.alarms.remove(&key);
-                if settings.on_for(&p.id) {
-                    let phases = settings.phases(kind);
-                    let fired = step(kind, phases, &mut active, latest, now).cloned();
-                    // A more severe phase always alerts and ends a snooze.
-                    if fired.is_some() {
-                        snoozed = false;
-                        inner.snoozed_until = None;
-                    }
-                    let repeat = active.as_mut().and_then(|a| {
-                        if fired.is_none() && !snoozed && repeat_due(a, settings.repeat_min, now) {
-                            a.alerted_ms = now;
-                            phase_of(phases, a).cloned()
-                        } else {
-                            None
-                        }
-                    });
-                    if let (Some(ph), Some(r)) = (fired.or(repeat), latest) {
-                        alerts.push(alert_for(p, kind, &ph, r));
-                    }
-                } else {
-                    active = None;
-                }
-                if let Some(a) = active {
-                    inner.alarms.insert(key, a);
-                }
-            }
-        }
-        any_flashing(inner)
+        let runtime = &inner.runtime;
+        let alerts = inner.engine.tick(
+            settings,
+            &inner.config.people,
+            |id| runtime.get(id).and_then(|r| r.readings.last()),
+            c,
+        );
+        (alerts, inner.engine.any_flashing(settings, c))
     };
     if flashing {
         crate::ui::ensure_flasher(app);
     }
     for a in alerts {
-        deliver(app, &a, allow);
+        deliver(app, &a);
     }
 }
 
-/// Shows and plays an alert, minus whatever the current quiet modes don't allow.
-fn deliver(app: &AppHandle, a: &Alert, allow: Allowed) {
-    if a.actions.notify && allow.notify {
+pub fn any_flashing(inner: &Inner) -> bool {
+    inner
+        .engine
+        .any_flashing(&inner.config.settings.alarms, Clock::local())
+}
+
+fn deliver(app: &AppHandle, a: &Alert) {
+    if a.actions.notify {
         use tauri_plugin_notification::NotificationExt;
         if let Err(e) = app
             .notification()
@@ -434,36 +522,19 @@ fn deliver(app: &AppHandle, a: &Alert, allow: Allowed) {
             eprintln!("cgm-glance: notification failed: {e}");
         }
     }
-    if allow.sound {
-        sound::play(a.actions.sound);
-    }
+    sound::play(a.actions.sound);
 }
 
-/// Starts a manual quiet period, or ends it when `minutes` is 0.
-pub fn set_quiet(app: &AppHandle, minutes: u32) {
+/// Applies a change to the alarm engine (acknowledge, snooze, quiet) with the settings.
+pub fn with_engine(app: &AppHandle, f: impl FnOnce(&mut Engine, &AlarmSettings, i64)) {
     let state = app.state::<AppState>();
-    let mut inner = state.lock();
-    inner.quiet_until =
-        (minutes > 0).then(|| model::now_ms() + minutes.min(24 * 60) as i64 * 60_000);
-}
-
-/// Silences alarms for the configured time. A more severe phase still alerts.
-pub fn snooze(app: &AppHandle) {
-    let state = app.state::<AppState>();
-    let mut inner = state.lock();
-    let mins = inner.config.settings.alarms.snooze_min as i64;
-    inner.snoozed_until = Some(model::now_ms() + mins * 60_000);
-}
-
-/// Acknowledges the alarms of one person, or of everyone when `id` is None.
-pub fn acknowledge(app: &AppHandle, id: Option<&str>) {
-    let state = app.state::<AppState>();
-    let mut inner = state.lock();
-    for ((pid, _), a) in inner.alarms.iter_mut() {
-        if id.map_or(true, |id| id == pid) {
-            a.acked = true;
-        }
-    }
+    let mut guard = state.lock();
+    let inner = &mut *guard;
+    f(
+        &mut inner.engine,
+        &inner.config.settings.alarms,
+        model::now_ms(),
+    );
 }
 
 #[cfg(test)]
