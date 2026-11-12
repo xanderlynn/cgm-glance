@@ -51,9 +51,30 @@ function alarmBanner(p) {
   );
 }
 
+function showQuiet(q) {
+  const el = document.getElementById("quiet");
+  el.hidden = false;
+  if (!q) {
+    el.replaceChildren(h("span", { class: "grow muted" }, "Alarms: normal"), h("button", { onclick: () => invoke("set_quiet", { minutes: 60 }) }, "Quiet for 1 hour"));
+    return;
+  }
+  const off = [!q.allow.flash && "flashing", !q.allow.notify && "notifications", !q.allow.sound && "sound"].filter(Boolean);
+  el.replaceChildren(
+    h(
+      "span",
+      { class: "grow" },
+      h("strong", {}, q.name),
+      q.manual_until ? ` until ${new Date(q.manual_until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "",
+      off.length ? ` · ${off.join(", ")} off` : " · all alarm actions on",
+    ),
+    q.manual_until && h("button", { onclick: () => invoke("set_quiet", { minutes: 0 }) }, "End quiet"),
+  );
+}
+
 onSnapshot((s) => {
   snap = s;
   document.getElementById("demo").hidden = !s.demo_mode;
+  showQuiet(s.quiet);
   document.getElementById("badge").textContent = s.settings.badge.enabled ? "Hide desktop badge" : "Show desktop badge";
   list.replaceChildren(
     ...(s.people.length

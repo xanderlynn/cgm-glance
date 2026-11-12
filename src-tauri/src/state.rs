@@ -56,6 +56,8 @@ pub struct Inner {
     pub flasher_running: bool,
     /// Alarms stay quiet until this time (ms), unless they escalate.
     pub snoozed_until: Option<i64>,
+    /// Manual "Quiet for 1 hour" end time (ms).
+    pub quiet_until: Option<i64>,
 }
 
 pub struct AppState {
@@ -143,6 +145,7 @@ pub struct Snapshot {
     pub demo_mode: bool,
     /// Unix ms until which alarms are snoozed.
     pub snoozed_until: Option<i64>,
+    pub quiet: Option<alarms::QuietView>,
     pub people: Vec<PersonView>,
     pub settings: Settings,
     pub config_people: Vec<Person>,
@@ -240,6 +243,7 @@ pub fn snapshot(state: &AppState) -> Snapshot {
     Snapshot {
         demo_mode: state.demo_mode,
         snoozed_until: inner.snoozed_until.filter(|&t| now < t),
+        quiet: alarms::quiet_now(&inner, now),
         people: inner
             .config
             .people

@@ -7,6 +7,7 @@
 
 use crate::config::Person;
 use crate::model::{self, Reading, Units};
+use crate::quiet::{self, Allowed, QuietMode};
 use crate::sound::{self, Sound};
 use crate::state::{AppState, Inner};
 use serde::{Deserialize, Serialize};
@@ -117,6 +118,8 @@ pub struct AlarmSettings {
     pub repeat_min: u32,
     /// How long "Snooze" silences alarms.
     pub snooze_min: u32,
+    /// Schedules that limit what alarms may do (they can silence any alarm).
+    pub quiet: Vec<QuietMode>,
 }
 
 impl Default for AlarmSettings {
@@ -132,6 +135,7 @@ impl Default for AlarmSettings {
             off_for: vec![],
             repeat_min: 5,
             snooze_min: 30,
+            quiet: quiet::default_modes(),
         }
     }
 }
@@ -148,6 +152,8 @@ impl AlarmSettings {
     pub fn normalize(&mut self) {
         self.repeat_min = self.repeat_min.clamp(1, 60);
         self.snooze_min = self.snooze_min.clamp(5, 240);
+        self.quiet.truncate(quiet::MAX_MODES);
+        self.quiet.iter_mut().for_each(QuietMode::normalize);
         for kind in Kind::ALL {
             let phases = match kind {
                 Kind::Low => &mut self.low,
@@ -261,9 +267,45 @@ pub fn snoozed(inner: &Inner, now: i64) -> bool {
     inner.snoozed_until.is_some_and(|t| now < t)
 }
 
+/// The quiet modes on right now (scheduled or manual) and what alarms may still do.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct QuietView {
+    /// e.g. "Work" or "Quiet for 1 hour".
+    pub name: String,
+    pub allow: Allowed,
+    /// Unix ms when a manual quiet ends.
+    pub manual_until: Option<i64>,
+}
+
+pub fn quiet_now(inner: &Inner, now: i64) -> Option<QuietView> {
+    let (weekday, minute) = quiet::local_now();
+    let scheduled = quiet::active(&inner.config.settings.alarms.quiet, weekday, minute);
+    let manual = inner.quiet_until.filter(|&t| now < t);
+    let mut names: Vec<String> = scheduled.as_ref().map(|s| s.0.clone()).unwrap_or_default();
+    let mut allow = scheduled.map(|s| s.1).unwrap_or_default();
+    if manual.is_some() {
+        names.push("Quiet for now".into());
+        allow = Allowed {
+            flash: allow.flash && quiet::MANUAL.flash,
+            notify: allow.notify && quiet::MANUAL.notify,
+            sound: allow.sound && quiet::MANUAL.sound,
+        };
+    }
+    (!names.is_empty()).then(|| QuietView {
+        name: names.join(" + "),
+        allow,
+        manual_until: manual,
+    })
+}
+
+fn allowed_now(inner: &Inner, now: i64) -> Allowed {
+    quiet_now(inner, now).map(|q| q.allow).unwrap_or_default()
+}
+
 pub fn view(inner: &Inner, p: &Person) -> Option<AlarmView> {
     let settings = &inner.config.settings.alarms;
-    let quiet = snoozed(inner, model::now_ms());
+    let now = model::now_ms();
+    let quiet = snoozed(inner, now) || !allowed_now(inner, now).flash;
     Kind::ALL.into_iter().find_map(|kind| {
         let a = inner.alarms.get(&(p.id.clone(), kind))?;
         let phase = phase_of(settings.phases(kind), a);
@@ -285,7 +327,9 @@ fn threshold_text(mgdl: u16, units: Units) -> String {
 
 pub fn any_flashing(inner: &Inner) -> bool {
     let settings = &inner.config.settings.alarms;
-    !snoozed(inner, model::now_ms())
+    let now = model::now_ms();
+    !snoozed(inner, now)
+        && allowed_now(inner, now).flash
         && inner.alarms.iter().any(|((_, kind), a)| {
             !a.acked && phase_of(settings.phases(*kind), a).is_some_and(|p| p.actions.flash)
         })
@@ -323,12 +367,14 @@ pub fn check(app: &AppHandle) {
     let state = app.state::<AppState>();
     let now = model::now_ms();
     let mut alerts = vec![];
+    let allow;
     let flashing = {
         let mut guard = state.lock();
         let inner = &mut *guard;
         let settings = &inner.config.settings.alarms;
         let people = &inner.config.people;
         let mut snoozed = snoozed(inner, now);
+        allow = allowed_now(inner, now);
         inner
             .alarms
             .retain(|(id, _), _| people.iter().any(|p| &p.id == id));
@@ -370,12 +416,13 @@ pub fn check(app: &AppHandle) {
         crate::ui::ensure_flasher(app);
     }
     for a in alerts {
-        deliver(app, &a);
+        deliver(app, &a, allow);
     }
 }
 
-fn deliver(app: &AppHandle, a: &Alert) {
-    if a.actions.notify {
+/// Shows and plays an alert, minus whatever the current quiet modes don't allow.
+fn deliver(app: &AppHandle, a: &Alert, allow: Allowed) {
+    if a.actions.notify && allow.notify {
         use tauri_plugin_notification::NotificationExt;
         if let Err(e) = app
             .notification()
@@ -387,7 +434,17 @@ fn deliver(app: &AppHandle, a: &Alert) {
             eprintln!("cgm-glance: notification failed: {e}");
         }
     }
-    sound::play(a.actions.sound);
+    if allow.sound {
+        sound::play(a.actions.sound);
+    }
+}
+
+/// Starts a manual quiet period, or ends it when `minutes` is 0.
+pub fn set_quiet(app: &AppHandle, minutes: u32) {
+    let state = app.state::<AppState>();
+    let mut inner = state.lock();
+    inner.quiet_until =
+        (minutes > 0).then(|| model::now_ms() + minutes.min(24 * 60) as i64 * 60_000);
 }
 
 /// Silences alarms for the configured time. A more severe phase still alerts.

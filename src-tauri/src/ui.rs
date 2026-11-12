@@ -317,6 +317,7 @@ fn build_tray(
         .item(&MenuItemBuilder::with_id("badge", "Show / hide desktop badge").build(app)?)
         .item(&MenuItemBuilder::with_id("ack", "Acknowledge alarms").build(app)?)
         .item(&MenuItemBuilder::with_id("snooze", "Snooze alarms").build(app)?)
+        .item(&MenuItemBuilder::with_id("quiet", "Quiet for 1 hour").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("quit", "Quit CGM Glance").build(app)?)
         .build()?;
@@ -357,6 +358,10 @@ fn handle_menu(app: &AppHandle, id: &str) {
             }
             refresh(app);
         }
+        "quiet" => {
+            crate::alarms::set_quiet(app, 60);
+            refresh(app);
+        }
         "snooze" => {
             crate::alarms::snooze(app);
             refresh(app);
@@ -394,7 +399,7 @@ pub fn toggle_popup(app: &AppHandle, rect: Option<tauri::Rect>) {
 
 pub fn show_popup(app: &AppHandle, rect: Option<tauri::Rect>) {
     let count = app.state::<AppState>().lock().config.people.len().max(1) as f64;
-    let height = (128.0 + 140.0 * count).min(660.0);
+    let height = (168.0 + 140.0 * count).min(700.0);
     let win = match app.get_webview_window("popup") {
         Some(w) => w,
         None => {

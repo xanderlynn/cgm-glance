@@ -45,6 +45,11 @@
     .phase { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
     .phase.off { opacity: .55; }
     .phase input[type=number] { width: 80px; }
+    .phase input.name { width: 160px; }
+    .days { display: inline-flex; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+    .days button { border: 0; padding: 3px 7px; border-radius: 6px; font-size: 12px; }
+    .days button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+    input[type=time] { border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; background: var(--surface); }
     .steps { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--accent); text-transform: uppercase; }
   </style>
 </head>

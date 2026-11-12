@@ -419,3 +419,10 @@ pub fn snooze_alarms(app: AppHandle) {
     crate::alarms::snooze(&app);
     ui::refresh(&app);
 }
+
+/// Starts a manual quiet period for `minutes`, or ends it with 0.
+#[tauri::command]
+pub fn set_quiet(app: AppHandle, minutes: u32) {
+    crate::alarms::set_quiet(&app, minutes);
+    ui::refresh(&app);
+}
