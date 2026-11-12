@@ -42,6 +42,17 @@ arrive every 10 seconds. It never touches your real settings or keychain.
 You can also add a **Demo data** person from the normal app. Scenarios cover every state:
 steady, high, low, urgent low, old reading, no data, rejected password, and no internet.
 
+### UI test harness
+
+Runs the real popup, badge and settings pages in a normal browser with a fake backend
+and synthetic data, for checking layouts and flows quickly:
+
+```bash
+python3 tests/ui-harness/serve.py
+# then open http://localhost:8765/tests/ui-harness/  (everything at once)
+#       or http://localhost:8765/tests/ui-harness/badges.html  (every badge style)
+```
+
 ## Build from source
 
 Needs [Rust](https://rustup.rs) and, on Linux:

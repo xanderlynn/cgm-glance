@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CGM Glance UI harness</title>
+  <style>
+    body { margin: 0; font: 13px system-ui, sans-serif; background: #d9dee5; display: flex; gap: 16px; padding: 16px; align-items: flex-start; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 6px; }
+    iframe { border: 0; background: transparent; }
+    #settings { width: 840px; height: 680px; background: #fff; border-radius: 8px; box-shadow: 0 4px 16px #0003; }
+    #popup { width: 380px; height: 640px; border-radius: 10px; box-shadow: 0 4px 16px #0003; }
+    #desk { width: 600px; height: 420px; border-radius: 8px; background: linear-gradient(135deg, #3b5f7e, #1a2a3a); position: relative; display: flex; flex-direction: column; align-items: flex-end; padding: 8px; gap: 0; }
+    button { font: inherit; }
+  </style>
+</head>
+<body>
+  <div class="col"><strong>Settings window</strong><iframe id="settings" src="/ui/settings.html"></iframe></div>
+  <div class="col"><strong>Tray popup</strong><iframe id="popup" src="/ui/popup.html"></iframe></div>
+  <div class="col"><strong>Desktop badges (real sizes)</strong><div id="desk"></div>
+    <button onclick="localStorage.removeItem('cgm-harness-state'); location.reload()">Reset harness data</button></div>
+  <script>
+    // Mirrors ui.rs badge_logical_size so the iframes are the same size as the real windows.
+    function size(style, sz, count) {
+      const k = { s: 0.8, m: 1, l: 1.3 }[sz];
+      const [w, h] = { dot: [44, 44], number: [68, 68], arrow: [108, 68], age: [190, 48], card: [240, 120] }[style];
+      return [Math.round(w * k) + 16, Math.round(Math.round(h * k) * count + 8 * (count - 1)) + 16];
+    }
+    let last = "";
+    function layout() {
+      const st = JSON.parse(localStorage.getItem("cgm-harness-state") || "null");
+      if (!st) return setTimeout(layout, 300);
+      const b = st.settings.badge;
+      const chosen = st.people.filter((p) => !b.people.length || b.people.includes(p.id));
+      const labels = !b.enabled || !chosen.length ? [] : b.combined ? [["badge-all", chosen.length]] : chosen.map((p) => ["badge-" + p.id, 1]);
+      const key = JSON.stringify([labels, b.style, b.size]);
+      if (key === last) return;
+      last = key;
+      const desk = document.getElementById("desk");
+      desk.replaceChildren(...labels.map(([l, n]) => {
+        const f = document.createElement("iframe");
+        const [w, h] = size(b.style, b.size, n);
+        f.src = "/ui/badge.html?label=" + encodeURIComponent(l);
+        f.style.cssText = `width:${w}px;height:${h}px`;
+        f.title = l;
+        return f;
+      }));
+    }
+    window.addEventListener("storage", layout);
+    setInterval(layout, 1000);
+    layout();
+  </script>
+</body>
+</html>

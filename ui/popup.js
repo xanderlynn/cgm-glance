@@ -1,14 +1,14 @@
-import { invoke, onSnapshot, h, ageText, displayValue, avatar, sparkline } from "./common.js";
+import { invoke, onSnapshot, h, ageText, displayValue, avatar, sparkline, statusChip } from "./common.js";
 
 let snap = null;
 const list = document.getElementById("list");
 
 function card(p) {
   const fresh = ["in_range", "high", "low", "urgent_low"].includes(p.status);
-  const sub = [p.unit_label, fresh && p.arrow, fresh && p.delta].filter(Boolean).join("  ");
+  const sub = p.value ? [p.unit_label, fresh && p.arrow, fresh && p.delta].filter(Boolean).join("  ") : "";
   const action =
     p.status === "sign_in"
-      ? h("button", { onclick: () => invoke("open_settings", { tab: "people" }) }, "Sign in again")
+      ? h("button", { onclick: () => invoke("open_settings", { tab: `signin:${p.id}` }) }, "Sign in again")
       : p.status === "error"
         ? h("button", { onclick: () => invoke("retry_person", { id: p.id }) }, "Retry now")
         : null;
@@ -22,12 +22,12 @@ function card(p) {
       h(
         "div",
         { class: "grow" },
-        h("div", {}, h("strong", {}, p.name), " ", p.is_demo && h("span", { class: "demo-pill" }, "DEMO")),
+        h("div", {}, h("strong", {}, p.name), " ", p.is_demo && h("span", { class: "demo-pill" }, "DEMO"), " ", statusChip(p)),
         h("div", { class: "small muted" }, [p.source_label, ageText(p.age_min)].filter(Boolean).join(" · ")),
       ),
       h("div", {}, h("div", { class: "value" }, displayValue(p)), h("div", { class: "small muted sub" }, sub)),
     ),
-    p.history.length > 0 && sparkline(p, 330, 54),
+    p.history.length > 0 && sparkline(p, 330, 40),
     p.message && h("div", { class: "msg" }, p.message),
     action,
   );

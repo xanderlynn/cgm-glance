@@ -32,6 +32,8 @@ pub enum NewSource {
 #[derive(Serialize)]
 pub struct TestResult {
     pub draft_id: String,
+    /// Range of the latest reading with default ranges, so the wizard can color it.
+    pub status: crate::model::Status,
     pub source_label: String,
     pub value: Option<String>,
     pub mgdl: Option<u16>,
@@ -65,7 +67,7 @@ fn validate(d: &Display) -> Result<(), String> {
     }
     let t = &d.thresholds;
     if !(40 <= t.urgent_low && t.urgent_low < t.low && t.low < t.high && t.high <= 400) {
-        return Err("Ranges must go urgent low < low < high, between 40 and 400 mg/dL.".into());
+        return Err("Ranges must go urgent low < low < high, between 40 and 400 mg/dL (2.2 and 22.2 mmol/L).".into());
     }
     Ok(())
 }
@@ -150,6 +152,7 @@ pub async fn test_connection(app: AppHandle, source: NewSource) -> Result<TestRe
     }
     Ok(TestResult {
         draft_id,
+        status: model::classify(latest, now, &Thresholds::default()),
         source_label: cfg.label(),
         value: latest.map(|r| model::format_value(r.mgdl, Units::Mgdl)),
         mgdl: latest.map(|r| r.mgdl),
@@ -175,28 +178,33 @@ pub fn save_person(
 ) -> Result<String, String> {
     validate(&display)?;
     let state = app.state::<AppState>();
-    let draft = state
-        .lock()
-        .drafts
-        .remove(&draft_id)
-        .ok_or("That connection test has expired. Test the connection again.")?;
+    let (source, secret) = {
+        let inner = state.lock();
+        let d = inner
+            .drafts
+            .get(&draft_id)
+            .ok_or("That connection test has expired. Test the connection again.")?;
+        (d.source.clone(), d.secret.clone())
+    };
     let id = replace_id.unwrap_or_else(|| {
         let u = uuid::Uuid::new_v4().to_string();
-        if draft.source.is_demo() {
+        if source.is_demo() {
             format!("demo-{u}")
         } else {
             u
         }
     });
-    match &draft.secret {
+    // If the keychain fails, the draft stays so the user can retry without retyping.
+    match &secret {
         Some(secret) => secrets::store(&id, secret)?,
         None => secrets::delete(&id),
     }
     {
         let mut inner = state.lock();
+        inner.drafts.remove(&draft_id);
         match inner.config.people.iter_mut().find(|p| p.id == id) {
             Some(p) => {
-                p.source = draft.source;
+                p.source = source;
                 apply_display(p, display);
             }
             None => {
@@ -207,7 +215,7 @@ pub fn save_person(
                     color: String::new(),
                     units: Units::Mgdl,
                     thresholds: Thresholds::default(),
-                    source: draft.source,
+                    source,
                     tray_icon: true,
                 };
                 apply_display(&mut p, display);
@@ -264,7 +272,17 @@ pub fn remove_person(app: AppHandle, id: String) {
 pub fn save_settings(app: AppHandle, mut settings: Settings) -> Result<(), String> {
     settings.badge.opacity = settings.badge.opacity.clamp(0.3, 1.0);
     let state = app.state::<AppState>();
-    let (fast_changed, autostart) = {
+    let old_autostart = state.lock().config.settings.autostart;
+    if settings.autostart != old_autostart {
+        use tauri_plugin_autostart::ManagerExt;
+        let r = if settings.autostart {
+            app.autolaunch().enable()
+        } else {
+            app.autolaunch().disable()
+        };
+        r.map_err(|e| format!("Could not change start at login: {e}"))?;
+    }
+    let fast_changed = {
         let mut inner = state.lock();
         let old = inner.config.settings.clone();
         let layout_changed = old.badge.position != settings.badge.position
@@ -274,26 +292,32 @@ pub fn save_settings(app: AppHandle, mut settings: Settings) -> Result<(), Strin
             inner.badge_geometry.clear();
         }
         let fast_changed = old.demo_fast != settings.demo_fast;
-        let autostart = (old.autostart != settings.autostart).then_some(settings.autostart);
         inner.config.settings = settings;
         state.save(&inner);
-        (fast_changed, autostart)
+        fast_changed
     };
-    if let Some(on) = autostart {
-        use tauri_plugin_autostart::ManagerExt;
-        let r = if on {
-            app.autolaunch().enable()
-        } else {
-            app.autolaunch().disable()
-        };
-        r.map_err(|e| format!("Could not change start at login: {e}"))?;
-    }
     if fast_changed {
-        poller::stop_all(&app);
-        poller::start_all(&app);
+        // Only demo people. Restarting a real source could retry a rejected password.
+        let demo_ids: Vec<String> = state
+            .lock()
+            .config
+            .people
+            .iter()
+            .filter(|p| p.source.is_demo())
+            .map(|p| p.id.clone())
+            .collect();
+        for id in demo_ids {
+            poller::start(&app, &id);
+        }
     }
     ui::refresh(&app);
     Ok(())
+}
+
+/// Forgets tested sign-ins when the wizard is closed without saving.
+#[tauri::command]
+pub fn discard_drafts(app: AppHandle) {
+    app.state::<AppState>().lock().drafts.clear();
 }
 
 #[tauri::command]

@@ -36,6 +36,7 @@ fn main() {
             commands::remove_person,
             commands::save_settings,
             commands::reset_badge_positions,
+            commands::discard_drafts,
             commands::retry_person,
             commands::open_settings,
             commands::hide_popup,

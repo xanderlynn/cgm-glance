@@ -1,4 +1,4 @@
-import { invoke, onSnapshot, h, ageText, displayValue, avatar } from "./common.js";
+import { invoke, onSnapshot, h, ageText, displayValue, avatar, statusChip } from "./common.js";
 
 const TABS = [
   ["people", "People"],
@@ -8,6 +8,7 @@ const TABS = [
   ["about", "About"],
 ];
 const COLORS = ["#4C6FFF", "#E0559B", "#14A3A3", "#9B59D0", "#E07A2E", "#2E9E5B"];
+const COLOR_NAMES = ["Blue", "Pink", "Teal", "Purple", "Orange", "Green"];
 const SCENARIOS = [
   ["normal", "Realistic day (moves through all ranges)"],
   ["steady", "Steady, in range"],
@@ -23,6 +24,8 @@ const SCENARIOS = [
 let snap = null;
 let tab = "people";
 let wizard = null; // set while adding a person, signing in again, or editing
+let confirmRemove = null; // id of the person whose removal is being confirmed
+let shownKey = ""; // what the People list currently shows, to skip needless redraws
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
 
@@ -48,7 +51,18 @@ function check(label, checked, onChange, id) {
 }
 
 function field(label, input, hint) {
-  return h("label", { class: "field" }, label, input, hint && h("span", { class: "small muted" }, hint));
+  const hintEl = hint && h("span", { class: "small muted" }, hint);
+  // A <label> around a group of buttons would make clicking the label text press the first button.
+  if (input instanceof HTMLInputElement || input instanceof HTMLSelectElement) return h("label", { class: "field" }, label, input, hintEl);
+  return h("div", { class: "field", role: "group", "aria-label": label }, h("span", {}, label), input, hintEl);
+}
+
+/** Leaves the wizard and forgets any tested sign-in. */
+function closeWizard() {
+  wizard = null;
+  for (const input of Object.values(secretInputs)) input.value = "";
+  secretInputs = {};
+  invoke("discard_drafts");
 }
 
 /** Changes settings, saves them, and redraws the current tab. */
@@ -75,7 +89,7 @@ function renderNav() {
           "aria-current": tab === id ? "page" : null,
           onclick: () => {
             tab = id;
-            wizard = null;
+            if (wizard) closeWizard();
             render();
           },
         },
@@ -87,21 +101,28 @@ function renderNav() {
 }
 
 function openTab(name) {
+  const signinId = name.startsWith("signin:") ? name.slice(7) : null;
+  const person = signinId && snap?.config_people.find((p) => p.id === signinId);
   if (name === "add") {
     tab = "people";
     startWizard("add");
+  } else if (person) {
+    startWizard("signin", person);
   } else if (TABS.some(([id]) => id === name)) {
     tab = name;
-    wizard = null;
+    if (wizard) closeWizard();
   }
   if (snap) render();
 }
 
 function render() {
   if (!snap) return;
+  shownKey = listKey(snap);
+  const focusKey = document.activeElement?.dataset?.key;
   renderNav();
   const views = { people: wizard ? wizardView : peopleView, tray: trayView, badge: badgeView, general: generalView, about: aboutView };
   main.replaceChildren(views[tab]());
+  if (focusKey) main.querySelector(`[data-key="${CSS.escape(focusKey)}"]`)?.focus();
 }
 
 // ---------- People ----------
@@ -114,24 +135,22 @@ function statusText(p) {
 function peopleView() {
   const rows = snap.people.map((p) => {
     const cfg = snap.config_people.find((c) => c.id === p.id);
-    let confirming = false;
-    const actions = h("div", { class: "actions" });
-    const drawActions = () =>
-      actions.replaceChildren(
-        ...(confirming
-          ? [
-              h("span", { class: "small" }, `Remove ${p.name} and their saved sign-in?`),
-              h("button", { class: "danger", onclick: () => invoke("remove_person", { id: p.id }) }, "Remove"),
-              h("button", { onclick: () => ((confirming = false), drawActions()) }, "Cancel"),
-            ]
-          : [
-              h("button", { onclick: () => startWizard("edit", cfg) }, "Edit"),
-              !p.is_demo && h("button", { onclick: () => startWizard("signin", cfg) }, "Sign in again"),
-              h("button", { class: "danger", onclick: () => ((confirming = true), drawActions()) }, "Remove"),
-            ]
-        ).filter(Boolean),
-      );
-    drawActions();
+    const actions = h(
+      "div",
+      { class: "actions" },
+      ...(confirmRemove === p.id
+        ? [
+            h("span", { class: "small" }, `Remove ${p.name} and their saved sign-in?`),
+            h("button", { class: "danger", onclick: () => ((confirmRemove = null), invoke("remove_person", { id: p.id })) }, "Yes, remove"),
+            h("button", { "data-key": `${p.id}:cancel`, onclick: () => ((confirmRemove = null), render()) }, "Cancel"),
+          ]
+        : [
+            h("button", { "data-key": `${p.id}:edit`, onclick: () => startWizard("edit", cfg) }, "Edit"),
+            !p.is_demo && h("button", { "data-key": `${p.id}:signin`, onclick: () => startWizard("signin", cfg) }, "Sign in again"),
+            h("button", { "data-key": `${p.id}:remove`, class: "danger", onclick: () => ((confirmRemove = p.id), render()) }, "Remove"),
+          ]
+      ).filter(Boolean),
+    );
     return h(
       "div",
       { class: `person st-${p.status}` },
@@ -142,7 +161,7 @@ function peopleView() {
         h(
           "div",
           { class: "grow" },
-          h("div", {}, h("strong", {}, p.name), " ", p.is_demo && h("span", { class: "demo-pill" }, "DEMO")),
+          h("div", {}, h("strong", {}, p.name), " ", p.is_demo && h("span", { class: "demo-pill" }, "DEMO"), " ", statusChip(p)),
           h("div", { class: "small muted" }, p.source_label),
         ),
         h("div", { class: "small" }, h("span", { class: "value" }, displayValue(p)), " ", statusText(p)),
@@ -162,6 +181,7 @@ function peopleView() {
 // ---------- Add / sign in again / edit wizard ----------
 
 function startWizard(mode, person) {
+  secretInputs = {};
   const kind = person?.source.kind ?? "nightscout";
   wizard = {
     mode,
@@ -186,7 +206,7 @@ function startWizard(mode, person) {
 
 function wizardView() {
   const w = wizard;
-  const title = { add: "Add a person", signin: "Sign in again", edit: "Edit person" }[w.mode];
+  const title = { add: "Add a person", signin: `Sign in again: ${w.display.name}`, edit: `Edit ${w.display.name}` }[w.mode];
   const body = [null, stepSource, stepDetails, stepResult, stepDisplay][w.step]();
   return h(
     "section",
@@ -202,22 +222,47 @@ function go(step) {
   wizard.step = step;
   wizard.error = "";
   render();
+  // Keyboard and screen-reader users land on the new step, not at the top of the page.
+  main.querySelector("input:not([type=checkbox]), select, [role=radio][aria-checked=true]")?.focus();
 }
+
+// Enter in a text field runs the step's main action.
+main.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.target.tagName !== "INPUT" || !wizard || wizard.busy) return;
+  if (wizard.step === 2) runTest();
+  else if (wizard.step === 4) saveWizard();
+});
 
 function stepSource() {
   const opt = (kind, title, text, tag) =>
     h(
       "div",
-      { class: "option", role: "radio", tabindex: 0, "aria-checked": String(wizard.kind === kind), onclick: () => ((wizard.kind = kind), render()) },
+      {
+        class: "option",
+        role: "radio",
+        tabindex: 0,
+        "aria-label": title,
+        "aria-checked": String(wizard.kind === kind),
+        onclick: () => ((wizard.kind = kind), render()),
+        onkeydown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            wizard.kind = kind;
+            render();
+            main.querySelector(`[data-kind="${kind}"]`)?.focus();
+          }
+        },
+        "data-kind": kind,
+      },
       h("div", {}, h("strong", {}, title), tag && h("span", { class: "tag" }, tag), h("p", {}, text)),
     );
   return [
-    h("p", { class: "muted" }, "Where do this person's readings come from?"),
-    opt("nightscout", "Nightscout", "Uses a read-only access token. No Dexcom password needed, and you can revoke the token any time.", "Recommended"),
+    h("p", { class: "muted", id: "source-q" }, "Where do this person's readings come from?"),
+    h("div", { role: "radiogroup", "aria-labelledby": "source-q", style: "display:flex;flex-direction:column;gap:10px" }, opt("nightscout", "Nightscout", "Uses a read-only access token. No Dexcom password needed, and you can revoke the token any time.", "Recommended"),
     opt("dexcom_share", "Dexcom Share", "Uses the Dexcom login of the person wearing the sensor, not a follower account. Share must be on with at least one follower."),
-    opt("demo", "Demo data", "Synthetic readings for trying the app. No account or internet needed. Always marked DEMO."),
+    opt("demo", "Demo data", "Synthetic readings for trying the app. No account or internet needed. Always marked DEMO.")),
     h("p", { class: "small muted" }, "The official Dexcom API isn't offered: its readings arrive 1 to 3 hours late."),
-    h("div", { class: "actions" }, h("button", { onclick: () => ((wizard = null), render()) }, "Cancel"), h("button", { class: "primary", onclick: () => go(2) }, "Next")),
+    h("div", { class: "actions" }, h("button", { onclick: () => (closeWizard(), render()) }, "Cancel"), h("button", { class: "primary", onclick: () => go(2) }, "Next")),
   ];
 }
 
@@ -226,8 +271,9 @@ let secretInputs = {};
 
 function stepDetails() {
   const w = wizard;
-  const back = h("button", { onclick: () => (w.mode === "signin" ? ((wizard = null), render()) : go(1)) }, "Back");
-  const test = h("button", { class: "primary", disabled: w.busy, onclick: runTest }, w.busy ? "Testing…" : "Test connection");
+  const back = h("button", { onclick: () => (w.mode === "signin" ? (closeWizard(), render()) : go(1)) }, "Back");
+  const testLabel = w.kind === "demo" ? "Load demo data" : "Test connection";
+  const test = h("button", { class: "primary", disabled: w.busy, onclick: runTest }, w.busy ? "Testing…" : testLabel);
   const keychain = h(
     "div",
     { class: "note safe" },
@@ -245,7 +291,7 @@ function stepDetails() {
     ];
   }
   if (w.kind === "nightscout") {
-    secretInputs = { token: h("input", { type: "password", id: "ns-token", autocomplete: "off", placeholder: "readable-abc123…" }) };
+    secretInputs.token ??= h("input", { type: "password", id: "ns-token", autocomplete: "off", placeholder: "readable-abc123…" });
     return [
       field("Nightscout address", h("input", { type: "url", id: "ns-url", value: w.url, placeholder: "https://my-site.example", oninput: (e) => (w.url = e.target.value) })),
       field("Access token (read-only role)", secretInputs.token, "Leave empty if the site is public."),
@@ -253,7 +299,7 @@ function stepDetails() {
       h("div", { class: "actions" }, back, test),
     ];
   }
-  secretInputs = { password: h("input", { type: "password", id: "dx-password", autocomplete: "off" }) };
+  secretInputs.password ??= h("input", { type: "password", id: "dx-password", autocomplete: "off" });
   return [
     field("Region", seg([["us", "US"], ["ous", "Outside US"], ["jp", "Japan"]], w.region, (v) => ((w.region = v), render()))),
     field("Email, username or phone", h("input", { type: "text", id: "dx-user", autocomplete: "off", value: w.username, oninput: (e) => (w.username = e.target.value) }), "Phone numbers need + and the country code."),
@@ -278,14 +324,16 @@ async function runTest() {
   try {
     w.result = await invoke("test_connection", { source });
     w.step = 3;
+    w.username = ""; // not needed after a successful test
   } catch (e) {
     w.error = String(e);
   } finally {
     w.busy = false;
     for (const input of Object.values(secretInputs)) input.value = "";
     secretInputs = {};
-    w.username = "";
     render();
+    // After a test, focus the next action (or the field to fix).
+    main.querySelector(w.step === 3 ? ".actions .primary" : "input, select")?.focus();
   }
 }
 
@@ -298,14 +346,22 @@ function stepResult() {
       "div",
       { class: "note" },
       h("div", { class: "small muted" }, "Latest reading"),
-      r.value ? h("div", { class: "big value st-in_range" }, `${r.value} ${r.arrow}`) : h("div", {}, "No reading"),
+      r.value ? h("div", { class: `big value st-${r.status}` }, `${r.value} ${r.arrow}`) : h("div", {}, "No reading"),
       r.value && h("div", { class: "small muted" }, `mg/dL · ${ageText(r.age_min)}`),
       r.note && h("p", { class: "small" }, r.note),
     ),
     h(
       "p",
       {},
-      demo ? "This is synthetic data. It will always be marked DEMO." : h("strong", {}, "Does this match the Dexcom app right now? If not, go back and check the account and region."),
+      demo
+        ? "This is synthetic data. It will always be marked DEMO."
+        : h(
+            "strong",
+            {},
+            wizard.kind === "nightscout"
+              ? "Does this match the Dexcom app right now? If not, go back and check the address."
+              : "Does this match the Dexcom app right now? If not, go back and check the account and region.",
+          ),
     ),
     h(
       "div",
@@ -332,7 +388,20 @@ function stepDisplay() {
       wizard.autoInitials = false;
     },
   });
-  const num = (key) => h("input", { type: "number", id: `t-${key}`, min: 40, max: 400, value: t[key], oninput: (e) => (t[key] = Number(e.target.value)) });
+  // Ranges are stored in mg/dL but shown and typed in the person's units.
+  const mmol = d.units === "mmol";
+  const MMOL = 18.0182;
+  const num = (key) =>
+    h("input", {
+      type: "number",
+      id: `t-${key}`,
+      "aria-label": { urgent_low: "Urgent low below", low: "Low below", high: "High above" }[key],
+      step: mmol ? 0.1 : 1,
+      min: mmol ? 2.2 : 40,
+      max: mmol ? 22.2 : 400,
+      value: mmol ? (t[key] / MMOL).toFixed(1) : t[key],
+      oninput: (e) => (t[key] = Math.round(mmol ? Number(e.target.value) * MMOL : Number(e.target.value))),
+    });
   return [
     h(
       "div",
@@ -352,14 +421,14 @@ function stepDisplay() {
       ),
       field("Initials", initialsInput),
     ),
-    field("Color", h("div", { class: "swatches" }, COLORS.map((c) => h("button", { class: "swatch", style: `background:${c}`, "aria-label": c, "aria-pressed": String(d.color === c), onclick: () => ((d.color = c), render()) })))),
+    field("Color", h("div", { class: "swatches" }, COLORS.map((c, i) => h("button", { class: "swatch", style: `background:${c}`, "aria-label": COLOR_NAMES[i], title: COLOR_NAMES[i], "aria-pressed": String(d.color === c), onclick: () => ((d.color = c), render()) })))),
     field("Units", seg([["mgdl", "mg/dL"], ["mmol", "mmol/L"]], d.units, (v) => ((d.units = v), render()))),
-    field("Ranges (mg/dL)", h("div", { class: "row" }, "Urgent low below", num("urgent_low"), "Low below", num("low"), "High above", num("high"))),
+    field(`Ranges (${mmol ? "mmol/L" : "mg/dL"})`, h("div", { class: "row" }, "Urgent low below", num("urgent_low"), "Low below", num("low"), "High above", num("high"))),
     check("Own icon in the tray", d.tray_icon, (v) => (d.tray_icon = v), "tray-own"),
     h(
       "div",
       { class: "actions" },
-      h("button", { onclick: () => (wizard.mode === "edit" ? ((wizard = null), render()) : go(3)) }, "Back"),
+      h("button", { onclick: () => (wizard.mode === "edit" ? (closeWizard(), render()) : go(3)) }, "Back"),
       h("button", { class: "primary", onclick: saveWizard }, "Save"),
     ),
   ];
@@ -392,6 +461,7 @@ function trayView() {
     h("h2", {}, "Tray icon"),
     field("With several people", seg([["per_person", "One icon per person"], ["primary", "One icon for everyone"]], t.mode, (v) => save((s) => (s.tray.mode = v)))),
     h("p", { class: "small muted" }, "With one icon per person, turn a person's icon off under People → Edit."),
+    t.mode === "primary" &&
     field(
       "Main person (shown on the single icon)",
       h(
@@ -420,7 +490,9 @@ function badgeView() {
           const all = snap.people.map((q) => q.id);
           let chosen = s.badge.people.length ? s.badge.people : all;
           chosen = on ? [...new Set([...chosen, p.id])] : chosen.filter((id) => id !== p.id);
-          s.badge.people = chosen.length === all.length ? [] : chosen;
+          // Empty means "everyone", so unchecking the last person turns the badge off instead.
+          if (chosen.length === 0) s.badge.enabled = false;
+          s.badge.people = chosen.length === all.length || chosen.length === 0 ? [] : chosen;
         }),
         `badge-p-${p.id}`,
       ),
@@ -431,6 +503,9 @@ function badgeView() {
     {},
     h("h2", {}, "Desktop badge"),
     check(h("strong", {}, "Show desktop badge"), b.enabled, set("enabled"), "badge-on"),
+    h(
+      "fieldset",
+      { disabled: !b.enabled, class: "group" },
     h("h3", {}, "People"),
     people,
     seg([[false, "One badge each"], [true, "Combined"]], b.combined, set("combined")),
@@ -455,6 +530,7 @@ function badgeView() {
     ),
     h("div", {}, h("button", { onclick: () => invoke("reset_badge_positions") }, "Reset badge positions")),
     h("p", { class: "small muted" }, "Linux on Wayland decides window position and stacking itself, so position and layer may not apply there."),
+    ),
   );
 }
 
@@ -468,7 +544,8 @@ function generalView() {
     h("h2", {}, "General"),
     check("Start CGM Glance when I sign in", g.autostart, (v) => save((s) => (s.autostart = v)), "autostart"),
     h("h3", {}, "Test mode"),
-    check("Fast demo data: a new reading every 10 seconds", g.demo_fast, (v) => save((s) => (s.demo_fast = v)), "demo-fast"),
+    snap.people.some((p) => p.is_demo) &&
+      check("Fast demo data: a new reading every 10 seconds", g.demo_fast, (v) => save((s) => (s.demo_fast = v)), "demo-fast"),
     h(
       "div",
       { class: "note small" },
@@ -501,11 +578,16 @@ function aboutView() {
 
 // ---------- start ----------
 
-openTab(location.hash.slice(1) || "people");
 window.__TAURI__.event.listen("open-tab", (e) => openTab(e.payload));
+// Only what the People list shows. Redrawing on every update would replace buttons mid-click.
+const listKey = (s) =>
+  JSON.stringify([confirmRemove, s.people.map((p) => [p.id, p.name, p.initials, p.color, p.status, p.value, p.arrow, p.age_min, p.message, p.source_label])]);
+
 onSnapshot((s) => {
   const first = !snap;
   snap = s;
+  // The tab in the URL (e.g. #add from the popup) needs data, so open it on the first update.
+  if (first) openTab(location.hash.slice(1) || "people");
   // Live data matters on the People list; other tabs redraw only when changed here.
-  if (first || (tab === "people" && !wizard)) render();
+  else if (tab === "people" && !wizard && listKey(s) !== shownKey) render();
 });

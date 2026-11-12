@@ -6,6 +6,7 @@
   --line: #e2e6eb;
   --accent: #3d5fd9;
   --accent-soft: #e8edff;
+  --on-accent: #ffffff;
   --in_range: #2e9e5b;
   --high: #e09a12;
   --low: #d64545;
@@ -25,7 +26,11 @@
     --line: #2e3742;
     --accent: #8ea6ff;
     --accent-soft: #26304a;
+    --on-accent: #0e1530;
     --in_range: #4cc47e;
+    --high: #f0b13a;
+    --low: #ff7a7a;
+    --urgent_low: #ff4d4d;
     color-scheme: dark;
   }
 }
@@ -37,7 +42,8 @@ button {
   padding: 6px 12px; cursor: pointer;
 }
 button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button:disabled { opacity: .6; cursor: default; }
 button.danger { color: var(--low); }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .muted { color: var(--muted); }
@@ -60,3 +66,5 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .st-stale { --c: var(--stale); }
 .st-no_data, .st-sign_in, .st-error, .st-loading { --c: var(--no_data); }
 .value { color: var(--c); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Status in words, so color is never the only cue */
+.chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: var(--c); border: 1px solid var(--c); }

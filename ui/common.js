@@ -38,6 +38,24 @@ export function displayValue(p) {
   return p.value ?? "---";
 }
 
+export const STATUS_WORD = {
+  in_range: null,
+  high: "High",
+  low: "Low",
+  urgent_low: "URGENT LOW",
+  stale: "Old reading",
+  no_data: "No recent reading",
+  sign_in: "Sign in needed",
+  error: "Can't connect",
+  loading: "Loading",
+};
+
+/** A small colored label like "Low" or "Old reading". Null when in range. */
+export function statusChip(p) {
+  const word = STATUS_WORD[p.status];
+  return word ? h("span", { class: `chip st-${p.status}` }, word) : null;
+}
+
 export function avatar(p, size = 32) {
   return h("div", { class: "avatar", style: `background:${p.color};width:${size}px;height:${size}px` }, p.initials);
 }
@@ -51,7 +69,8 @@ function s(tag, attrs) {
 
 /** Last 3 hours with the target range shaded. */
 export function sparkline(p, width, height, { band = true } = {}) {
-  const svg = s("svg", { viewBox: `0 0 ${width} ${height}`, width, height, class: "spark" });
+  // Stretches to its container's width so it can never push a card wider than the window.
+  const svg = s("svg", { viewBox: `0 0 ${width} ${height}`, width: "100%", height, preserveAspectRatio: "none", class: "spark" });
   const pts = p.history;
   if (!pts.length) return svg;
   const now = Date.now();
@@ -63,8 +82,10 @@ export function sparkline(p, width, height, { band = true } = {}) {
   if (band) {
     svg.append(s("rect", { x: 0, y: y(p.high), width, height: y(p.low) - y(p.high), class: "band" }));
   }
-  svg.append(s("polyline", { points: pts.map((q) => `${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`).join(" "), class: "line" }));
+  svg.append(s("polyline", { points: pts.map((q) => `${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`).join(" "), class: "line", "vector-effect": "non-scaling-stroke" }));
   const last = pts[pts.length - 1];
-  svg.append(s("circle", { cx: x(last.t), cy: y(last.v), r: 3.2, class: "dot" }));
+  // A zero-length round-capped line stays a circle when the chart is stretched.
+  const ex = x(last.t).toFixed(1), ey = y(last.v).toFixed(1);
+  svg.append(s("line", { x1: ex, y1: ey, x2: ex, y2: ey, class: "end", "vector-effect": "non-scaling-stroke" }));
   return svg;
 }

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CGM Glance</title>
   <link rel="stylesheet" href="common.css">
   <style>
@@ -16,7 +17,9 @@
     .card .sub { text-align: right; }
     .spark .band { fill: color-mix(in srgb, var(--in_range) 14%, transparent); }
     .spark .line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; }
-    .spark .dot { fill: var(--c); }
+    .spark .end { stroke: var(--c); stroke-width: 7; stroke-linecap: round; }
+    .card > * { min-width: 0; }
+    header h1, .card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .msg { font-size: 12px; color: var(--muted); }
     .empty { text-align: center; padding: 28px 12px; color: var(--muted); }
     .disclaimer { width: 100%; font-size: 11px; color: var(--muted); }

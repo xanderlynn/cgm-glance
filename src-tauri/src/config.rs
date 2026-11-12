@@ -194,7 +194,7 @@ impl Default for BadgeSettings {
             corner: Corner::TopRight,
             lock: false,
             click_through: false,
-            opacity: 0.95,
+            opacity: 1.0,
         }
     }
 }

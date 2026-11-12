@@ -1,4 +1,4 @@
-import { onSnapshot, h, displayValue, sparkline } from "./common.js";
+import { onSnapshot, h, displayValue, sparkline, STATUS_WORD } from "./common.js";
 
 // Window label is "badge-all" (combined) or "badge-<person id>".
 const label = window.__TAURI__.window.getCurrentWindow().label;
@@ -7,24 +7,36 @@ const SIZE = { s: 0.8, m: 1, l: 1.3 };
 const fresh = (p) => ["in_range", "high", "low", "urgent_low"].includes(p.status);
 const shortAge = (p) => (p.age_min == null ? "" : p.age_min === 0 ? "now" : `${p.age_min}m`);
 
-function badge(p, style, k, showInitials) {
+// One symbol per state for the color-only style, so color is never the only cue.
+function dotSymbol(p) {
+  if (p.status === "sign_in") return "!";
+  if (p.status === "stale") return "…";
+  if (p.status === "high") return "H";
+  if (p.status === "low" || p.status === "urgent_low") return "L";
+  if (fresh(p)) return p.arrow || "•";
+  return "–";
+}
+
+function badge(p, style, k, several) {
   const arrow = fresh(p) ? p.arrow : "";
-  const tag = [showInitials && p.initials, arrow].filter(Boolean).join(" ");
-  const cls = `b ${style} st-${p.status}${p.is_demo ? " demo" : ""}`;
-  const title = `${p.name}${p.is_demo ? " (demo data)" : ""}`;
   const v = displayValue(p);
+  const age = shortAge(p);
+  const word = STATUS_WORD[p.status];
+  // Small second line: who, plus the trend, or how old the reading is when it isn't fresh.
+  const tag = [several && p.initials, fresh(p) ? arrow : age].filter(Boolean).join(" ");
+  const cls = `b ${style} st-${p.status}${p.is_demo ? " demo" : ""}`;
+  const title = [p.name, word, p.is_demo && "demo data"].filter(Boolean).join(" · ");
   const el = {
-    // Color only. The arrow stays as a shape cue so color is never the only signal.
-    dot: () => h("div", {}, p.status === "sign_in" ? "!" : arrow),
+    dot: () => {
+      // Out of range shows H/L big, so the trend moves to the small line.
+      const small = [several && p.initials, ["high", "low", "urgent_low"].includes(p.status) && arrow].filter(Boolean).join(" ");
+      return [h("div", {}, dotSymbol(p)), small && h("div", { class: "t" }, small)];
+    },
     number: () => [h("div", { class: "n" }, v), tag && h("div", { class: "t" }, tag)],
-    arrow: () => [h("div", { class: "n" }, `${v} ${arrow}`.trim()), showInitials && h("div", { class: "t" }, p.initials)],
-    age: () => [
-      h("span", { class: "d" }),
-      h("span", { class: "n" }, `${v} ${arrow}`.trim()),
-      h("span", { class: "t" }, [showInitials && p.initials, shortAge(p), p.is_demo && "demo"].filter(Boolean).join(" · ")),
-    ],
+    arrow: () => [h("div", { class: "n" }, `${v} ${arrow}`.trim()), h("div", { class: "t" }, [several && p.initials, !fresh(p) && age].filter(Boolean).join(" ") || " ")],
+    age: () => [h("span", { class: "d" }), h("span", { class: "n" }, `${v} ${arrow}`.trim()), h("span", { class: "t" }, [several && p.initials, age].filter(Boolean).join(" · "))],
     card: () => [
-      h("div", { class: "t" }, [p.name, shortAge(p)].filter(Boolean).join(" · ")),
+      h("div", { class: "t" }, [p.name, age, word].filter(Boolean).join(" · ")),
       h("div", { class: "n" }, `${v} ${arrow}`.trim()),
       sparkline(p, Math.round(214 * k), Math.round(34 * k)),
     ],

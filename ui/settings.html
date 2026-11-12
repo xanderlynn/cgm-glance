@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CGM Glance Settings</title>
   <link rel="stylesheet" href="common.css">
   <style>
@@ -20,9 +21,9 @@
     }
     input[type=number] { width: 90px; }
     .check { display: flex; align-items: center; gap: 8px; }
-    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; flex-wrap: wrap; }
+    .seg { align-self: flex-start; display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; flex-wrap: wrap; }
     .seg button { border: 0; padding: 5px 12px; border-radius: 6px; }
-    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
     .option { border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; cursor: pointer; background: var(--surface); }
     .option[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
     .option p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
@@ -37,6 +38,8 @@
     .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
     .swatch[aria-pressed="true"] { border-color: var(--fg); }
     .big { font-size: 46px; }
+    fieldset.group { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    fieldset.group:disabled { opacity: .45; }
     .steps { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--accent); text-transform: uppercase; }
   </style>
 </head>

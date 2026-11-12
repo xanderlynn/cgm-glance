@@ -162,7 +162,7 @@ pub fn person_view(p: &Person, rt: Option<&Runtime>, now: i64) -> PersonView {
     if message.is_none() {
         message = match status {
             Status::NoData if latest.is_some() => {
-                Some("No recent reading. Check the phone and Share settings.".into())
+                Some("No recent reading. Check the sensor and the phone it sends to.".into())
             }
             Status::Loading => Some("Getting the first reading…".into()),
             _ => None,

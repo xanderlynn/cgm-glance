@@ -40,19 +40,6 @@ pub fn stop(app: &AppHandle, id: &str) {
     }
 }
 
-pub fn stop_all(app: &AppHandle) {
-    let handles: Vec<_> = app
-        .state::<AppState>()
-        .lock()
-        .pollers
-        .drain()
-        .map(|(_, h)| h)
-        .collect();
-    for h in handles {
-        h.abort();
-    }
-}
-
 pub fn start(app: &AppHandle, id: &str) {
     stop(app, id);
     let state = app.state::<AppState>();

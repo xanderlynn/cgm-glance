@@ -33,7 +33,13 @@ pub fn start_ticker(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            // Short interval: after the computer wakes from sleep, old readings must turn
+            // grey quickly instead of looking current.
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            app.state::<AppState>()
+                .lock()
+                .drafts
+                .retain(|_, d| d.created.elapsed() < Duration::from_secs(10 * 60));
             refresh(&app);
         }
     });
@@ -59,14 +65,24 @@ fn tray_icon_size(app: &AppHandle) -> u32 {
 fn short_title(v: &PersonView) -> String {
     match (&v.value, v.status) {
         (_, Status::SignIn) => "!".into(),
-        (Some(val), _) => {
-            if v.arrow.is_empty() {
-                val.clone()
-            } else {
-                format!("{val} {}", v.arrow)
-            }
-        }
+        // An old reading always says how old it is.
+        (Some(val), Status::Stale) => format!("{val} · {}m", v.age_min.unwrap_or(0)),
+        (Some(val), _) if v.arrow.is_empty() => val.clone(),
+        (Some(val), _) => format!("{val} {}", v.arrow),
         _ => "---".into(),
+    }
+}
+
+/// Lower is more urgent. Used to pick which person colors a shared tray icon.
+fn urgency(s: Status) -> u8 {
+    match s {
+        Status::UrgentLow => 0,
+        Status::Low => 1,
+        Status::High => 2,
+        Status::SignIn | Status::Error | Status::NoData => 3,
+        Status::Stale => 4,
+        Status::Loading => 5,
+        Status::InRange => 6,
     }
 }
 
@@ -93,7 +109,8 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
     let size = tray_icon_size(app);
     let use_dot = !cfg!(windows) || tray.icon_style == IconStyle::Dot;
     for (id, list) in &desired {
-        let first = list.first();
+        // A shared icon shows whoever needs attention most (main person on ties).
+        let first = list.iter().min_by_key(|v| urgency(v.status));
         let spec = IconSpec {
             status: first.map(|v| v.status).unwrap_or(Status::NoData),
             text: first.and_then(|v| v.icon_text.as_deref()),
@@ -117,9 +134,11 @@ fn update_trays(app: &AppHandle, snap: &Snapshot) {
         if tooltip.chars().count() > 120 {
             tooltip = tooltip.chars().take(119).collect::<String>() + "…";
         }
+        let several = snap.people.len() > 1;
         let title = match list.len() {
             0 => String::new(),
-            1 => short_title(list[0]),
+            1 if !several => short_title(list[0]),
+            1 => format!("{} {}", list[0].initials, short_title(list[0])),
             _ => list
                 .iter()
                 .map(|v| {
@@ -241,7 +260,7 @@ pub fn toggle_popup(app: &AppHandle, rect: Option<tauri::Rect>) {
 
 pub fn show_popup(app: &AppHandle, rect: Option<tauri::Rect>) {
     let count = app.state::<AppState>().lock().config.people.len().max(1) as f64;
-    let height = (128.0 + 158.0 * count).min(660.0);
+    let height = (128.0 + 140.0 * count).min(660.0);
     let win = match app.get_webview_window("popup") {
         Some(w) => w,
         None => {
@@ -376,6 +395,12 @@ struct Area {
     h: i32,
 }
 
+impl Area {
+    fn contains(&self, x: i32, y: i32) -> bool {
+        x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
+    }
+}
+
 /// Where badge `i` of `n` goes for Edge / Corner modes (physical pixels, window top-left).
 fn placed(b: &BadgeSettings, wa: &Area, i: i32, n: i32, pw: i32, ph: i32, m: i32) -> (i32, i32) {
     let gap = 0; // windows already include padding
@@ -464,6 +489,20 @@ fn sync_badges(app: &AppHandle, snap: &Snapshot) {
     };
     let margin = (8.0 * scale).round() as i32;
     let n = desired.len() as i32;
+    let on_screen: Vec<Area> = app
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| {
+            let wa = m.work_area();
+            Area {
+                x: wa.position.x,
+                y: wa.position.y,
+                w: wa.size.width as i32,
+                h: wa.size.height as i32,
+            }
+        })
+        .collect();
     let flags = format!("{:?}|{}|{}", b.layer, b.click_through, b.lock);
 
     for (i, (label, count)) in desired.iter().enumerate() {
@@ -473,7 +512,10 @@ fn sync_badges(app: &AppHandle, snap: &Snapshot) {
         let (target, flags_changed, geometry_changed) = {
             let mut inner = state.lock();
             let (x, y) = match (b.position, inner.config.badge_positions.get(label)) {
-                (PositionMode::Free, Some(p)) => (p.x, p.y),
+                // A saved spot on a monitor that's gone falls back to the default place.
+                (PositionMode::Free, Some(p)) if on_screen.iter().any(|r| r.contains(p.x, p.y)) => {
+                    (p.x, p.y)
+                }
                 _ => placed(b, &area, i as i32, n, pw, ph, margin),
             };
             let g = Geometry {
@@ -598,8 +640,9 @@ fn finish_move(app: &AppHandle, label: &str) {
     let (left, top) = (wa.position.x, wa.position.y);
     let (right, bottom) = (left + wa.size.width as i32, top + wa.size.height as i32);
     let (w_, h_) = (size.width as i32, size.height as i32);
-    let mut x = pos.x;
-    let mut y = pos.y;
+    // Keep the whole badge on screen, then snap to a nearby edge.
+    let mut x = pos.x.clamp(left, (right - w_).max(left));
+    let mut y = pos.y.clamp(top, (bottom - h_).max(top));
     if (x - left).abs() < snap {
         x = left + m;
     } else if (right - (x + w_)).abs() < snap {
