@@ -278,7 +278,7 @@ pub struct QuietView {
 /// leave out whatever the current quiet modes don't allow.
 #[derive(Debug, Clone)]
 // `person_id`, `kind` and `mgdl` are read by the month simulator.
-#[allow(dead_code)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct Alert {
     pub person_id: String,
     pub kind: Kind,
