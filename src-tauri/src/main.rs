@@ -1,6 +1,7 @@
 // No console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alarms;
 mod commands;
 mod config;
 mod icon;
@@ -41,6 +42,7 @@ fn main() {
             commands::open_settings,
             commands::hide_popup,
             commands::quit_app,
+            commands::acknowledge_alarms,
         ])
         .setup(move |app| {
             // Tray-only app: no Dock icon on macOS.

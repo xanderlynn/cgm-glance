@@ -230,6 +230,7 @@ impl Default for BadgeSettings {
 pub struct Settings {
     pub tray: TraySettings,
     pub badge: BadgeSettings,
+    pub alarms: crate::alarms::AlarmSettings,
     /// Demo sources produce a new reading every 10 s instead of every 5 min.
     pub demo_fast: bool,
     pub autostart: bool,

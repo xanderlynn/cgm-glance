@@ -20,6 +20,12 @@
     .spark .end { stroke: var(--c); stroke-width: 7; stroke-linecap: round; }
     .card > * { min-width: 0; }
     header h1, .card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .alarm { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      background: color-mix(in srgb, var(--c) 16%, transparent); border: 1px solid var(--c); }
+    .alarm.acked { font-weight: 400; background: none; border-style: dashed; }
+    .card:has(.alarm:not(.acked)) { animation: pulse 1.2s steps(2, jump-none) infinite; }
+    @keyframes pulse { 50% { border-color: var(--c); box-shadow: 0 0 0 2px var(--c); } }
+    @media (prefers-reduced-motion: reduce) { .card { animation: none !important; } }
     .msg { font-size: 12px; color: var(--muted); }
     .empty { text-align: center; padding: 28px 12px; color: var(--muted); }
     .disclaimer { width: 100%; font-size: 11px; color: var(--muted); }

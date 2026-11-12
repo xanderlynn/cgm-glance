@@ -27,7 +27,7 @@ function badge(p, style, k, showWho) {
   const who = showWho && p.initials;
   // Second line: the trend when the reading is fresh, otherwise how old it is.
   const extra = fresh(p) ? arrow : age;
-  const cls = `b ${style} st-${p.status}${p.is_demo ? " demo" : ""}`;
+  const cls = `b ${style} st-${p.status}${p.is_demo ? " demo" : ""}${p.alarm?.flash ? " flash" : ""}`;
   // Hovering always shows the full reading, even for the faces style.
   const title = [p.name, p.value && `${p.value} ${p.unit_label} ${arrow}`.trim(), STATUS_WORD[p.status], p.is_demo && "demo data"]
     .filter(Boolean)
@@ -60,7 +60,7 @@ onSnapshot((snap) => {
   if (drag) root.setAttribute("data-tauri-drag-region", "");
   else root.removeAttribute("data-tauri-drag-region");
   // Rebuild only when something the badge shows changed.
-  const key = JSON.stringify([b.style, b.size, showWho, shown.map((p) => [p.name, p.initials, p.status, p.value, p.unit_label, p.arrow, p.age_min, p.is_demo])]);
+  const key = JSON.stringify([b.style, b.size, showWho, shown.map((p) => [p.name, p.initials, p.status, p.value, p.unit_label, p.arrow, p.age_min, p.is_demo, p.alarm?.flash])]);
   if (key === shownKey) return;
   shownKey = key;
   root.replaceChildren(...shown.map((p) => badge(p, b.style, k, showWho)));
