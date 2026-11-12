@@ -20,13 +20,21 @@
   Linux). An unreadable settings file is kept as `config.json.unreadable`, not overwritten.
 - Windows can only listen for app events, not send them, and load only the app's own pages
   (strict Content-Security-Policy).
+- Each window can call only the commands it needs (`src-tauri/capabilities/`). Desktop
+  badges can only read the current readings. Only Settings can test or save sign-ins. A
+  test fails if a page calls a command its window isn't granted.
+- Alarm notifications can leave out glucose numbers (Settings → Alarms), keeping them off
+  the lock screen and out of notification history.
 
 ## Known limits
 
 - The Nightscout access token travels in the request URL, as Nightscout's API expects. It
   stays within HTTPS to your own site, but your site's access logs may record it. Use a
   token with only the "readable" role.
-- Builds aren't code-signed yet, so the OS can't verify where an installer came from.
+- Installers aren't code-signed (Windows Authenticode, macOS notarization) yet, so the OS
+  warns on first install. In-app updates are signed separately (see below).
+- Pages allow inline `<style>` blocks (`style-src 'unsafe-inline'`). Scripts are limited to
+  the app's own files, and the pages never insert HTML from data.
 - Some Linux-only libraries pulled in by Tauri and the keyring are flagged as unmaintained
   by `cargo audit`. None have known vulnerabilities; updates come from upstream.
 
@@ -34,15 +42,21 @@
 
 - No real credentials, tokens or patient data belong here. Tests use synthetic data only.
 - CI runs [gitleaks](https://github.com/gitleaks/gitleaks) and `cargo audit` on every push
-  and pull request. GitHub Actions are pinned to exact commits, and Dependabot proposes
-  updates weekly.
+  and pull request. GitHub secret scanning with push protection, Dependabot alerts and
+  CodeQL are on. Dependabot proposes updates weekly.
+- GitHub Actions must be pinned to exact commits (enforced in the repository settings).
+  Workflows get read-only tokens unless a job needs more.
+- `main` accepts changes only through pull requests that pass CI, and can't be force-pushed
+  or deleted. Only maintainers can create or move release tags (`v*`).
 - `.gitignore` excludes local config files and common key formats.
 - In-app updates are fetched over HTTPS from this repository's GitHub Releases and installed
   only if their signature matches the public key built into the app. The private update key
-  exists only as a GitHub Actions secret (and with the maintainer), never in the repository.
-  Draft releases aren't served, so nothing ships until a release is published.
+  exists only as a secret of the `release` environment (and with the maintainer), never in
+  the repository. That environment accepts only `v*` tags and needs a maintainer's
+  approval before each build, and the build checks the tag against the app version. Draft
+  releases aren't served, so nothing ships until a release is published.
 
 ## Reporting a problem
 
-Please open a private security advisory on GitHub (Security → Report a vulnerability)
-rather than a public issue.
+Please report privately through GitHub (Security → Report a vulnerability), not a public
+issue.

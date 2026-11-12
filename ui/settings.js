@@ -690,6 +690,8 @@ function alarmsView() {
       ...phases("low", "Low alarm"),
       ...phases("high", "High alarm"),
       ...quietSection(a, set),
+      check("Show glucose numbers in notifications", a.notification_values, (v) => set((al) => (al.notification_values = v)), "alarm-values"),
+      h("p", { class: "small muted" }, "Turn this off to keep numbers off the lock screen and notification history. Alerts still say who is low or high."),
       h("h3", {}, "No readings"),
       field(
         "Alert when no new reading arrives for (minutes, 0 = off)",

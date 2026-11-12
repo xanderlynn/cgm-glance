@@ -9,10 +9,39 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
+
+# One release build per tag at a time.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  check:
+    name: Check version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # The tag, tauri.conf.json and Cargo.toml must agree, or the updater would offer a
+      # version that doesn't match what it installs.
+      - name: Tag matches the app version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          conf=$(jq -r .version src-tauri/tauri.conf.json)
+          cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          echo "tag=$TAG tauri.conf=$conf Cargo.toml=$cargo"
+          [ "$TAG" = "v$conf" ] && [ "$conf" = "$cargo" ]
+
   build:
+    needs: check
+    # The signing key is an environment secret: only tag builds that a maintainer approves
+    # can read it.
+    environment: release
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:

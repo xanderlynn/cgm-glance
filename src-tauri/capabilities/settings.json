@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "The Settings window: people, sign-in tests, settings and updates. No file or shell access.",
+  "windows": ["settings"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
+    "allow-get-snapshot",
+    "allow-test-connection",
+    "allow-save-person",
+    "allow-update-person",
+    "allow-remove-person",
+    "allow-save-settings",
+    "allow-reset-badge-positions",
+    "allow-discard-drafts",
+    "allow-check-update",
+    "allow-install-update"
+  ]
+}
