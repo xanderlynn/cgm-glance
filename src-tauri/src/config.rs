@@ -309,6 +309,8 @@ pub fn load(path: &Path) -> Config {
         Err(_) => Config::default(),
     };
     // Colors go into page styles, so only plain #RRGGBB values are allowed.
+    // Hand-edited or older files: keep alarm rules in range.
+    cfg.settings.alarms.normalize();
     for p in &mut cfg.people {
         if !is_color(&p.color) {
             p.color = "#4C6FFF".into();

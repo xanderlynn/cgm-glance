@@ -1,10 +1,12 @@
 //! Generated alarm tones, so there are no audio files to ship or load.
 
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Ordered from quietest to most urgent.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Sound {
     #[default]
@@ -24,31 +26,51 @@ fn notes(s: Sound) -> Vec<(f32, u64)> {
         Sound::Chime => vec![(880.0, 180), (0.0, 60), (1318.5, 320)],
         Sound::Alert => [(988.0, 150), (0.0, 110)].repeat(3),
         Sound::Urgent => [
-            (1568.0, 110),
+            (1568.0, 120),
             (0.0, 50),
-            (1568.0, 110),
+            (1568.0, 120),
             (0.0, 50),
-            (1568.0, 110),
-            (0.0, 420),
+            (1568.0, 120),
+            (0.0, 350),
         ]
-        .repeat(3),
+        .repeat(5),
     }
 }
 
-/// True while a tone is playing, so repeated alerts don't stack up.
-static PLAYING: AtomicBool = AtomicBool::new(false);
+/// The tone playing now (0 = none), so repeated alerts don't stack up while a more
+/// urgent tone still gets through.
+static PLAYING: AtomicU8 = AtomicU8::new(0);
+/// The last playback failure, shown in the popup so a broken speaker isn't silent.
+static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
 
-/// Plays a tone on the default output device without blocking.
+/// Clears the playing flag even if playback panics.
+struct Playing;
+impl Drop for Playing {
+    fn drop(&mut self) {
+        PLAYING.store(0, Ordering::SeqCst);
+    }
+}
+
+/// Plays a tone on the default output device without blocking. A tone already playing
+/// is only joined by a more urgent one.
 pub fn play(s: Sound) {
-    if s == Sound::Off || PLAYING.swap(true, Ordering::SeqCst) {
+    let level = s as u8;
+    if s == Sound::Off || PLAYING.fetch_max(level, Ordering::SeqCst) >= level {
         return;
     }
     std::thread::spawn(move || {
-        if let Err(e) = play_blocking(s) {
+        let _guard = Playing;
+        let result = play_blocking(s).map_err(|e| e.to_string());
+        if let Err(e) = &result {
             eprintln!("cgm-glance: could not play the alarm sound: {e}");
         }
-        PLAYING.store(false, Ordering::SeqCst);
+        *LAST_ERROR.lock().unwrap_or_else(|p| p.into_inner()) = result.err();
     });
+}
+
+/// Why the last alarm sound failed, if it did.
+pub fn last_error() -> Option<String> {
+    LAST_ERROR.lock().unwrap_or_else(|p| p.into_inner()).clone()
 }
 
 fn play_blocking(s: Sound) -> Result<(), rodio::StreamError> {
@@ -65,7 +87,7 @@ fn play_blocking(s: Sound) -> Result<(), rodio::StreamError> {
                 SineWave::new(freq)
                     .take_duration(d)
                     .fade_in(Duration::from_millis(8))
-                    .amplify(0.35),
+                    .amplify(if s == Sound::Urgent { 0.6 } else { 0.35 }),
             );
         }
     }
@@ -81,7 +103,7 @@ mod tests {
     fn tones_are_short() {
         for s in [Sound::Chime, Sound::Alert, Sound::Urgent] {
             let ms: u64 = notes(s).iter().map(|n| n.1).sum();
-            assert!(ms > 0 && ms < 3_000, "{s:?} lasts {ms} ms");
+            assert!(ms > 0 && ms < 5_000, "{s:?} lasts {ms} ms");
         }
         assert!(notes(Sound::Off).is_empty());
     }

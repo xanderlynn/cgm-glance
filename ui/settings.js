@@ -565,8 +565,26 @@ function alarmsView() {
   // Rules are shared, so numbers use mmol/L only when everyone does.
   const mmol = snap.config_people.length > 0 && snap.config_people.every((p) => p.units === "mmol");
   const unit = mmol ? "mmol/L" : "mg/dL";
+  const mixed = !mmol && snap.config_people.some((p) => p.units === "mmol");
   const shown = (mg) => (mmol ? (mg / MMOL).toFixed(1) : String(mg));
+  const margin = mmol ? "0.3 mmol/L" : "5 mg/dL";
+  // Entered in the shown unit and checked against its range, so "3.9" typed in mg/dL
+  // or "70" typed in mmol/L is refused instead of silently becoming 40 or 400.
+  const toMgdl = (text) => {
+    const n = Number(text);
+    if (!Number.isFinite(n)) return null;
+    if (mmol) return n >= 2.2 && n <= 22.2 ? Math.round(n * MMOL) : null;
+    return n >= 40 && n <= 400 ? Math.round(n) : null;
+  };
   const set = (fn) => save((s) => fn(s.alarms));
+  const minutesField = (label, key, lo, hi, id) =>
+    field(
+      label,
+      h("input", {
+        type: "number", id, min: lo, max: hi, value: a[key],
+        onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= lo && n <= hi) set((al) => (al[key] = n)); else render(); },
+      }),
+    );
   const phaseRow = (kind, ph, i) => {
     const id = `${kind}-${i}`;
     const edit = (fn) => set((al) => fn(al[kind][i]));
@@ -584,9 +602,13 @@ function alarmsView() {
         "aria-label": `Threshold in ${unit}`,
         "data-key": `${id}-n`,
         onchange: (e) => {
-          const n = Number(e.target.value);
-          if (!Number.isFinite(n) || n <= 0) return render();
-          edit((p) => (p.mgdl = Math.round(mmol ? n * MMOL : n)));
+          const v = toMgdl(e.target.value);
+          if (v === null || v === ph.mgdl) return render();
+          if (a[kind].some((q, j) => j !== i && q.mgdl === v)) {
+            alertBox(`There is already a phase at ${shown(v)} ${unit}.`);
+            return;
+          }
+          edit((p) => (p.mgdl = v));
         },
       }),
       h("span", { class: "muted" }, unit),
@@ -605,12 +627,13 @@ function alarmsView() {
         { "aria-label": "Sound", "data-key": `${id}-sound`, onchange: (e) => edit((p) => (p.actions.sound = e.target.value)) },
         SOUNDS.map(([v, label]) => h("option", { value: v, selected: ph.actions.sound === v }, label)),
       ),
+      check("Ignore quiet modes and snooze", ph.breakthrough, (v) => edit((p) => (p.breakthrough = v)), `${id}-break`),
     );
     return h("div", { class: `phase${ph.enabled ? "" : " off"}` }, when, then);
   };
   const phases = (kind, title) => [
     h("h3", {}, title),
-    a[kind].length === 0 && h("p", { class: "small" }, "No phases: this alarm is off."),
+    !a[kind].some((p) => p.enabled) && h("p", { class: "small error" }, "No phases are on: this alarm is off."),
     ...a[kind].map((ph, i) => phaseRow(kind, ph, i)),
     a[kind].length < 6 &&
       h(
@@ -619,9 +642,13 @@ function alarmsView() {
         h("button", {
           onclick: () =>
             set((al) => {
-              const last = al[kind].at(-1)?.mgdl;
-              const mgdl = kind === "low" ? Math.max(40, (last ?? 80) - 5) : Math.min(400, (last ?? 180) + 20);
-              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true, notify: true, sound: "off" } });
+              const used = new Set(al[kind].map((p) => p.mgdl));
+              const step = kind === "low" ? -5 : 20;
+              let mgdl = al[kind].at(-1)?.mgdl ?? (kind === "low" ? 80 : 180);
+              do mgdl = Math.min(400, Math.max(40, mgdl + step));
+              while (used.has(mgdl) && mgdl > 40 && mgdl < 400);
+              if (used.has(mgdl)) return;
+              al[kind].push({ enabled: true, mgdl, trend_only: false, actions: { flash: true, notify: true, sound: "off" }, breakthrough: false });
             }),
         }, "+ Add phase"),
       ),
@@ -652,26 +679,49 @@ function alarmsView() {
               ),
             ),
           ),
-      h("p", { class: "small muted" }, "Phases escalate: the most extreme phase a reading is in decides what happens, and each new, more extreme phase alerts again. An alarm ends once the reading is 5 mg/dL back past its first phase. Readings older than 10 minutes never trigger an alarm."),
+      h(
+        "p",
+        { class: "small muted" },
+        `Phases escalate: the most extreme phase a reading is in decides what happens, and a new, more extreme phase alerts at once. Repeats follow the phase the reading is in now. An alarm ends once the reading is ${margin} back past its first phase. Readings older than 10 minutes never start an alarm; if readings stop during an alarm, it keeps reminding.`,
+      ),
+      mixed && h("p", { class: "small muted" }, "Numbers are in mg/dL because the people you follow use different units."),
       ...phases("low", "Low alarm"),
       ...phases("high", "High alarm"),
       ...quietSection(a, set),
-      h("h3", {}, "Repeat"),
+      h("h3", {}, "No readings"),
       field(
-        "Alert again every (minutes) until acknowledged",
+        "Alert when no new reading arrives for (minutes, 0 = off)",
         h("input", {
-          type: "number", id: "alarm-repeat", min: 1, max: 60, value: a.repeat_min,
-          onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 60) set((al) => (al.repeat_min = n)); else render(); },
+          type: "number", id: "alarm-nodata", min: 0, max: 240, value: a.no_data.after_min,
+          onchange: (e) => {
+            const n = Math.round(Number(e.target.value));
+            if (n === 0 || (n >= 15 && n <= 240)) set((al) => (al.no_data.after_min = n));
+            else render();
+          },
         }),
+        "0 turns it off; otherwise 15 to 240.",
       ),
-      field(
-        "Snooze length (minutes)",
-        h("input", {
-          type: "number", id: "alarm-snooze", min: 5, max: 240, value: a.snooze_min,
-          onchange: (e) => { const n = Math.round(Number(e.target.value)); if (n >= 5 && n <= 240) set((al) => (al.snooze_min = n)); else render(); },
-        }),
+      h(
+        "div",
+        { class: "line then" },
+        check("Notify", a.no_data.actions.notify, (v) => set((al) => (al.no_data.actions.notify = v)), "nodata-notify"),
+        h(
+          "select",
+          { "aria-label": "Sound", id: "nodata-sound", onchange: (e) => set((al) => (al.no_data.actions.sound = e.target.value)) },
+          SOUNDS.map(([v, label]) => h("option", { value: v, selected: a.no_data.actions.sound === v }, label)),
+        ),
       ),
-      h("p", { class: "small muted" }, "Snooze silences repeats and flashing for that long; a lower (or higher) phase still alerts and ends the snooze."),
+      h("h3", {}, "Repeat and acknowledge"),
+      h(
+        "div",
+        { class: "grid2" },
+        minutesField("Repeat lows every (min)", "repeat_min", 1, 60, "alarm-repeat"),
+        minutesField("Repeat highs every (min)", "high_repeat_min", 1, 240, "alarm-repeat-high"),
+        minutesField("After acknowledging a low, remind after (min)", "low_ack_min", 5, 120, "alarm-ack-low"),
+        minutesField("After acknowledging a high, remind after (min)", "high_ack_min", 5, 480, "alarm-ack-high"),
+        minutesField("Snooze length (min)", "snooze_min", 5, 240, "alarm-snooze"),
+      ),
+      h("p", { class: "small muted" }, "Acknowledging quiets that person's alarm for a while; if they are still in a phase after that, it alerts again. Snooze quiets one person's repeats and flashing (lows for at most their acknowledge reminder); a more extreme phase still alerts and ends the snooze."),
       h("p", { class: "small muted" }, "Acknowledge or snooze an alarm from the readings popup or the tray menu. Notifications use your system's notification settings; check that CGM Glance is allowed to notify."),
     ),
   );
@@ -685,6 +735,7 @@ const minutes = (t) => {
 };
 
 function quietSection(a, set) {
+  const lowBreaks = a.low.some((p) => p.enabled && p.breakthrough);
   const activeNames = (snap.quiet?.name || "").split(" + ");
   const modeRow = (m, i) => {
     const id = `quiet-${i}`;
@@ -736,19 +787,27 @@ function quietSection(a, set) {
     const allow = h(
       "div",
       { class: "line then" },
-      h("span", { class: "muted small" }, "Allows:"),
+      h("span", { class: "muted small" }, "While on, allow:"),
       check("Flash", m.allow.flash, (v) => edit((q) => (q.allow.flash = v)), `${id}-flash`),
       check("Notify", m.allow.notify, (v) => edit((q) => (q.allow.notify = v)), `${id}-notify`),
       check("Sound", m.allow.sound, (v) => edit((q) => (q.allow.sound = v)), `${id}-sound`),
     );
-    return h("div", { class: `phase${m.enabled ? "" : " off"}` }, top, when, allow);
+    const risky = m.enabled && !m.allow.sound && !lowBreaks;
+    return h(
+      "div",
+      { class: `phase${m.enabled ? "" : " off"}` },
+      top,
+      when,
+      allow,
+      risky && h("p", { class: "small error" }, "This mode silences urgent lows. To let them through, tick \"Ignore quiet modes and snooze\" on your lowest low phase."),
+    );
   };
   return [
     h("h3", {}, "Quiet modes"),
     h(
       "p",
       { class: "small muted" },
-      "While a mode is on, alarms only do what it allows. Modes apply to every alarm, including urgent lows. A night window (e.g. 22:00 to 07:00) belongs to the day it starts. \"Quiet for 1 hour\" in the tray menu or popup stops notifications and sound; flashing continues.",
+      "While a mode is on, alarms only do what it allows, except phases set to ignore quiet modes. When a mode ends, held-back alerts come at once. A night window (e.g. 22:00 to 07:00) belongs to the day it starts; the same start and end time means all day. \"Quiet for 1 hour\" in the tray menu or popup stops notifications and sound; flashing continues.",
     ),
     snap.quiet && h("div", { class: "note warn small" }, `On now: ${snap.quiet.name}`),
     ...a.quiet.map(modeRow),
@@ -757,7 +816,7 @@ function quietSection(a, set) {
         "div",
         {},
         h("button", {
-          onclick: () => set((al) => al.quiet.push({ name: "Sleep", enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: 22 * 60, end: 7 * 60, allow: { flash: true, notify: false, sound: false } })),
+          onclick: () => set((al) => al.quiet.push({ name: "Sleep", enabled: false, days: [0, 1, 2, 3, 4, 5, 6], start: 22 * 60, end: 7 * 60, allow: { flash: true, notify: false, sound: false } })),
         }, "+ Add mode"),
       ),
   ];

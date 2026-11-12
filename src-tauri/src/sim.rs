@@ -8,7 +8,7 @@
 //! `CGM_SIM=scenario.json cargo test sim::month -- --ignored --nocapture`
 //! Optional `CGM_SIM_EVENTS=events.csv` writes every alert and user action.
 
-use crate::alarms::{AlarmSettings, Clock, Engine, Kind};
+use crate::alarms::{About, AlarmSettings, Clock, Engine, Kind};
 use crate::config::{Person, Scenario, SourceConfig};
 use crate::model::{Reading, Thresholds, Trend, Units};
 use crate::sound::Sound;
@@ -192,8 +192,14 @@ pub struct PersonReport {
     pub snoozes: u32,
     /// Minutes from first alert to the user's reaction.
     pub max_unanswered_min: i64,
-    /// Fresh readings under 55 for 15+ minutes in a row with no notification or sound.
+    /// Fresh readings under 55 for 15+ minutes in a row with no sound (or notification
+    /// while awake) in that time.
     pub silent_urgent_lows: u32,
+    /// Minutes under 55 (fresh) with no sound or awake notification in the past 30 minutes.
+    pub urgent_minutes_unheard_30m: u32,
+    /// Sounds not played because a more urgent tone played the same minute.
+    pub sounds_dropped: u32,
+    pub no_data_alerts: u32,
     /// Fresh readings under 70 for 15+ minutes with no alarm active at all.
     pub missed_lows: u32,
     pub minutes_flashing: i64,
@@ -256,7 +262,8 @@ pub fn run(cfg: &SimConfig, mut events: Option<&mut String>) -> Report {
     let mut pending: Vec<Option<(i64, bool)>> = vec![None; people.len()]; // (since, heard)
     let mut silent_run = vec![0i64; people.len()];
     let mut missed_run = vec![0i64; people.len()];
-    let mut heard_in_run = vec![false; people.len()];
+    // Minute each person's alarms were last heard (sound, or a notification while awake).
+    let mut last_heard = vec![i64::MIN / 2; people.len()];
     let total = cfg.days as i64 * DAY;
     for m in 0..total {
         let c = Clock {
@@ -297,60 +304,68 @@ pub fn run(cfg: &SimConfig, mut events: Option<&mut String>) -> Report {
                 }
             }
         }
-        let before: Vec<((String, Kind), u16)> = engine
-            .active
-            .iter()
-            .map(|(k, a)| (k.clone(), a.mgdl))
-            .collect();
         let alerts = engine.tick(
             &settings,
             &people,
             |id| latest[id[1..].parse::<usize>().unwrap()].as_ref(),
             c,
         );
-        let allow = engine
-            .quiet(&settings, c)
-            .map(|q| q.allow)
-            .unwrap_or_default();
+        // The app plays only the most urgent tone of a check (like `alarms::deliver`).
+        let loudest = alerts
+            .iter()
+            .map(|a| a.actions.sound)
+            .max()
+            .unwrap_or(Sound::Off);
+        let mut played = false;
         for a in &alerts {
             let i: usize = a.person_id[1..].parse().unwrap();
             let r = &mut reports[i];
-            let repeat = before
-                .iter()
-                .any(|(k, mg)| k.0 == a.person_id && k.1 == a.kind && *mg == a.mgdl);
-            let kind = if a.kind == Kind::Low { "low" } else { "high" };
-            let key = format!(
-                "{kind} {} {}",
-                a.mgdl,
-                if repeat { "repeat" } else { "fired" }
-            );
-            *r.alerts.entry(key).or_default() += 1;
-            let phase = settings
-                .phases(a.kind)
-                .iter()
-                .find(|p| p.mgdl == a.mgdl)
-                .cloned()
-                .unwrap_or_default();
-            if phase.actions.notify && !allow.notify {
+            let label = match a.about {
+                About::Alarm(Kind::Low) => "low",
+                About::Alarm(Kind::High) => "high",
+                About::NoData => "no data",
+            };
+            if a.about == About::NoData {
+                r.no_data_alerts += 1;
+            } else {
+                let key = format!(
+                    "{label} {} {}",
+                    a.mgdl,
+                    if a.repeat { "repeat" } else { "fired" }
+                );
+                *r.alerts.entry(key).or_default() += 1;
+            }
+            if a.wanted.notify && !a.actions.notify {
                 r.notify_suppressed_by_quiet += 1;
             }
-            if phase.actions.sound != Sound::Off && !allow.sound {
+            if a.wanted.sound != Sound::Off && a.actions.sound == Sound::Off {
                 r.sound_suppressed_by_quiet += 1;
             }
             r.notifications += a.actions.notify as u32;
             let loud = a.actions.sound != Sound::Off;
-            r.sounds += loud as u32;
-            if a.actions.notify || loud {
-                heard_in_run[i] = true;
+            if loud && a.actions.sound == loudest && !played {
+                played = true;
+                r.sounds += 1;
+            } else if loud {
+                r.sounds_dropped += 1;
             }
             let heard = loud || (a.actions.notify && !asleep(&cfg.behavior, c.minute));
-            let p = pending[i].get_or_insert((m, false));
-            p.1 |= heard;
+            if heard {
+                last_heard[i] = m;
+            }
+            if a.about != About::NoData {
+                let p = pending[i].get_or_insert((m, false));
+                p.1 |= heard;
+            }
             log(
                 &mut events,
                 c,
                 &a.title,
-                &format!("{kind} {}{}", a.mgdl, if repeat { " (repeat)" } else { "" }),
+                &format!(
+                    "{label} {}{}",
+                    a.mgdl,
+                    if a.repeat { " (repeat)" } else { "" }
+                ),
                 &format!(
                     "{} notify={} sound={:?} flash={}",
                     a.body, a.actions.notify, a.actions.sound, a.actions.flash
@@ -375,11 +390,11 @@ pub fn run(cfg: &SimConfig, mut events: Option<&mut String>) -> Report {
             if let Some(react) = cfg.behavior.react_min {
                 if noticed && waited >= react && (awake || heard) {
                     if cfg.behavior.snooze {
-                        engine.snooze(&settings, c.now);
+                        engine.snooze(&settings, Some(&p.id), c.now);
                         reports_i.snoozes += 1;
                         log(&mut events, c, &p.name, "user", "snooze");
                     } else {
-                        engine.acknowledge(Some(&p.id));
+                        engine.acknowledge(&settings, Some(&p.id), c.now);
                         reports_i.acks += 1;
                         log(&mut events, c, &p.name, "user", "acknowledge");
                     }
@@ -399,9 +414,13 @@ pub fn run(cfg: &SimConfig, mut events: Option<&mut String>) -> Report {
             let fresh = latest[i].as_ref().filter(|r| c.now - r.time_ms < 10 * MIN);
             let v = fresh.map(|r| r.mgdl);
             let low_active = engine.active.contains_key(&(p.id.clone(), Kind::Low));
+            if v.is_some_and(|v| v < 55) && cfg.people[i].alarms_on && m - last_heard[i] > 30 {
+                reports[i].urgent_minutes_unheard_30m += 1;
+            }
             if v.is_some_and(|v| v < 55) {
                 silent_run[i] += 1;
-                if silent_run[i] == 15 && !heard_in_run[i] && cfg.people[i].alarms_on {
+                let heard_in_run = m - last_heard[i] < silent_run[i];
+                if silent_run[i] == 15 && !heard_in_run && cfg.people[i].alarms_on {
                     reports[i].silent_urgent_lows += 1;
                     log(
                         &mut events,
@@ -413,9 +432,6 @@ pub fn run(cfg: &SimConfig, mut events: Option<&mut String>) -> Report {
                 }
             } else {
                 silent_run[i] = 0;
-                if !low_active {
-                    heard_in_run[i] = false;
-                }
             }
             if v.is_some_and(|v| v < 70) && !low_active {
                 missed_run[i] += 1;
@@ -523,6 +539,31 @@ mod tests {
             assert_eq!(p.notifications, 0);
         }
         assert!(r.people.iter().any(|p| p.sound_suppressed_by_quiet > 0));
+    }
+
+    /// The audit's parent case: night lows, a parent who wakes only for sound and goes
+    /// back to sleep after acknowledging. Every urgent low must keep sounding.
+    #[test]
+    fn sleeping_parent_hears_every_urgent_low() {
+        for snooze in [false, true] {
+            let mut c = cfg(21);
+            c.people[0].night_low_chance = 0.8;
+            c.behavior = Behavior {
+                react_min: Some(2),
+                sleep: (22 * 60 + 30, 6 * 60 + 30),
+                snooze,
+                manual_quiet: vec![],
+            };
+            let r = run(&c, None);
+            for p in &r.people {
+                assert!(
+                    p.pct_below_55 > 0.0,
+                    "the scenario must include urgent lows"
+                );
+                assert_eq!(p.silent_urgent_lows, 0, "snooze={snooze} {p:?}");
+                assert!(p.urgent_minutes_unheard_30m <= 15, "snooze={snooze} {p:?}");
+            }
+        }
     }
 
     #[test]
