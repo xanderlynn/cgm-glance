@@ -30,9 +30,15 @@ fn entry(person_id: &str) -> Result<keyring::Entry, String> {
 fn explain(e: keyring::Error) -> String {
     match e {
         keyring::Error::NoEntry => "No saved sign-in was found in the system keychain.".into(),
-        keyring::Error::NoStorageAccess(_) | keyring::Error::PlatformFailure(_) => {
-            "The system keychain is not available. On Linux, install and unlock GNOME Keyring or KWallet, then try again."
-                .into()
+        keyring::Error::NoStorageAccess(e) | keyring::Error::PlatformFailure(e) => {
+            let hint = if cfg!(target_os = "macos") {
+                "macOS didn't let CGM Glance read its saved sign-in. If a keychain prompt appeared, choose Always Allow; otherwise use \"Sign in again\"."
+            } else if cfg!(windows) {
+                "Windows Credential Manager couldn't be read. Use \"Sign in again\"."
+            } else {
+                "The system keychain is not available. Install and unlock GNOME Keyring or KWallet, then try again."
+            };
+            format!("{hint} ({e})")
         }
         other => format!("System keychain error: {other}"),
     }
