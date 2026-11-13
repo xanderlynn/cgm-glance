@@ -32,6 +32,18 @@ Settings → Alarms. They add to the Dexcom app's own alarms; they don't replace
 - **No-readings alert** when data stops arriving.
 - **Quiet modes** (e.g. Work, Sleep) limit what alarms do on a schedule. A phase can be set to ignore quiet modes and snooze. Settings warns when a mode would silence urgent lows.
 
+## Troubleshooting
+
+- **Signed in but no readings:** Dexcom Share needs the account of the person wearing the
+  sensor, with Share turned on in their Dexcom app and at least one follower. Check the region
+  too.
+- **See what each fetch returns:** start the app with `CGM_GLANCE_DEBUG=1` (for example
+  `CGM_GLANCE_DEBUG=1 cargo run` in `src-tauri`). Each fetch logs how many readings came back
+  and how old the newest is, or the error. No names, values or passwords are logged.
+- **Switch accounts:** Settings → People → **Sign out** deletes that person's saved password and
+  keeps their settings; **Sign in again** adds a new one. Settings → General → **Erase all data**
+  resets the app completely.
+
 ## Data sources
 
 | Source | Needs | Notes |

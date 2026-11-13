@@ -27,7 +27,8 @@ let tab = "people";
 let wizard = null; // set while adding a person, signing in again, or editing
 let confirmRemove = null; // id of the person whose removal is being confirmed
 let shownKey = "";
-let shownUpdate = ""; // update status the General tab last drew // what the People list currently shows, to skip needless redraws
+let shownUpdate = "";
+let confirmErase = false; // General tab: asking before erasing everything // update status the General tab last drew // what the People list currently shows, to skip needless redraws
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
 
@@ -150,6 +151,7 @@ function peopleView() {
         : [
             h("button", { "data-key": `${p.id}:edit`, onclick: () => startWizard("edit", cfg) }, "Edit"),
             !p.is_demo && h("button", { "data-key": `${p.id}:signin`, onclick: () => startWizard("signin", cfg) }, "Sign in again"),
+            !p.is_demo && p.status !== "sign_in" && h("button", { "data-key": `${p.id}:signout`, title: "Delete the saved password and stop fetching. Name and settings are kept.", onclick: () => invoke("sign_out", { id: p.id }) }, "Sign out"),
             h("button", { "data-key": `${p.id}:remove`, class: "danger", onclick: () => ((confirmRemove = p.id), render()) }, "Remove"),
           ]
       ).filter(Boolean),
@@ -880,6 +882,19 @@ function generalView() {
     h("h2", {}, "General"),
     check("Start CGM Glance when I sign in", g.autostart, (v) => save((s) => (s.autostart = v)), "autostart"),
     ...updatesSection(g),
+    h("h3", {}, "Your data"),
+    h("p", { class: "small muted" }, "Passwords live only in your system keychain. Readings are kept in memory and never written to disk."),
+    h(
+      "div",
+      { class: "actions" },
+      ...(confirmErase
+        ? [
+            h("span", { class: "small" }, "Remove every person and saved password, and reset all settings? This can't be undone."),
+            h("button", { class: "danger", onclick: () => { confirmErase = false; invoke("erase_all_data").then(() => openTab("people")).catch((e) => alertBox(String(e))); } }, "Yes, erase everything"),
+            h("button", { onclick: () => { confirmErase = false; render(); } }, "Cancel"),
+          ]
+        : [h("button", { class: "danger", id: "erase-all", onclick: () => { confirmErase = true; render(); } }, "Erase all data…")]),
+    ),
     h("h3", {}, "Test mode"),
     snap.people.some((p) => p.is_demo) &&
       check("Fast demo data: a new reading every 10 seconds", g.demo_fast, (v) => save((s) => (s.demo_fast = v)), "demo-fast"),
