@@ -287,6 +287,64 @@ pub fn remove_person(app: AppHandle, id: String) {
     ui::refresh(&app);
 }
 
+/// Signs a person out: deletes their saved password from the keychain, stops fetching and
+/// drops their readings. Their name, colour and alarm settings stay, so "Sign in again"
+/// brings them back.
+#[tauri::command]
+pub fn sign_out(app: AppHandle, id: String) {
+    poller::stop(&app, &id);
+    secrets::delete(&id);
+    let state = app.state::<AppState>();
+    {
+        let mut inner = state.lock();
+        if !inner.config.people.iter().any(|p| p.id == id) {
+            return;
+        }
+        let rt = inner.runtime.entry(id).or_default();
+        rt.readings.clear();
+        rt.error = Some((
+            crate::model::Status::SignIn,
+            "Signed out. Use \"Sign in again\" to resume.".into(),
+        ));
+    }
+    ui::refresh(&app);
+}
+
+/// Erases everything: every person and saved password, all settings and window
+/// positions. The app is left as if freshly installed.
+#[tauri::command]
+pub fn erase_all_data(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let (ids, autostart) = {
+        let inner = state.lock();
+        let ids: Vec<String> = inner.config.people.iter().map(|p| p.id.clone()).collect();
+        (ids, inner.config.settings.autostart)
+    };
+    for id in &ids {
+        poller::stop(&app, id);
+        secrets::delete(id);
+    }
+    if autostart {
+        use tauri_plugin_autostart::ManagerExt;
+        let _ = app.autolaunch().disable();
+    }
+    {
+        let mut inner = state.lock();
+        inner.config = crate::config::Config::default();
+        inner.runtime.clear();
+        inner.drafts.clear();
+        inner.engine = Default::default();
+        // Remove the files themselves (including any kept unreadable copy), then write a
+        // fresh default so nothing of the old settings is left on disk.
+        let _ = std::fs::remove_file(state.path.with_extension("json.unreadable"));
+        let _ = std::fs::remove_file(&state.path);
+        crate::config::save(&state.path, &inner.config)
+            .map_err(|e| format!("Could not reset the settings file: {e}"))?;
+    }
+    ui::refresh_force(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn save_settings(app: AppHandle, mut settings: Settings) -> Result<(), String> {
     settings.badge.opacity = settings.badge.opacity.clamp(0.3, 1.0);

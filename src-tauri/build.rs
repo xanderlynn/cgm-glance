@@ -18,6 +18,8 @@ const COMMANDS: &[&str] = &[
     "set_quiet",
     "check_update",
     "install_update",
+    "sign_out",
+    "erase_all_data",
 ];
 
 fn main() {

@@ -54,6 +54,8 @@ fn main() {
             commands::set_quiet,
             commands::check_update,
             commands::install_update,
+            commands::sign_out,
+            commands::erase_all_data,
         ])
         .setup(move |app| {
             // Tray-only app: no Dock icon on macOS.

@@ -196,6 +196,8 @@
         persist();
       }, 300);
     },
+    sign_out: ({ id }) => { state.signedOut ||= {}; state.signedOut[id] = true; persist(); },
+    erase_all_data: () => { localStorage.removeItem(KEY); state = { start: Date.now(), people: [], settings: defaults() }; persist(); },
     set_quiet: ({ minutes }) => { state.quiet_until = minutes ? Date.now() + minutes * MIN : null; persist(); },
     snooze_alarms: ({ id }) => {
       state.snoozed ||= {};

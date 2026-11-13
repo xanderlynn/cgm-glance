@@ -50,31 +50,43 @@ pub fn start(app: &AppHandle, id: &str) {
         };
         (p, inner.config.settings.demo_fast)
     };
-    let secret = match &person.source {
-        SourceConfig::Demo { .. } => None,
-        _ => match secrets::load(&person.id) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                set_error(app, id, Status::SignIn, e);
-                return;
-            }
-        },
-    };
-    let seed = person.id.bytes().map(|b| b as u64).sum();
-    let client = match SourceClient::build(&person.source, secret, state.http.clone(), fast, seed) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(app, id, Status::SignIn, e);
-            return;
-        }
-    };
+    let http = state.http.clone();
     let app2 = app.clone();
     let id2 = id.to_string();
-    let handle = tauri::async_runtime::spawn(async move { run(app2, id2, client).await });
+    let handle = tauri::async_runtime::spawn(async move {
+        // Reading the keychain can wait on a macOS permission prompt, so it runs off the
+        // UI thread: the tray and windows keep working while the prompt is open.
+        let secret = match &person.source {
+            SourceConfig::Demo { .. } => None,
+            _ => {
+                let pid = person.id.clone();
+                match tauri::async_runtime::spawn_blocking(move || secrets::load(&pid)).await {
+                    Ok(Ok(s)) => Some(s),
+                    Ok(Err(e)) => return set_error(&app2, &id2, Status::SignIn, e),
+                    Err(e) => return set_error(&app2, &id2, Status::Error, e.to_string()),
+                }
+            }
+        };
+        let seed = person.id.bytes().map(|b| b as u64).sum();
+        let client = match SourceClient::build(&person.source, secret, http, fast, seed) {
+            Ok(c) => c,
+            Err(e) => return set_error(&app2, &id2, Status::SignIn, e),
+        };
+        if debug_log() {
+            eprintln!("cgm-glance: poller {} started", &id2[..id2.len().min(8)]);
+        }
+        run(app2, id2, client).await
+    });
     state.lock().pollers.insert(id.to_string(), handle);
 }
 
 fn set_error(app: &AppHandle, id: &str, status: Status, msg: String) {
+    if debug_log() {
+        eprintln!(
+            "cgm-glance: poller {} not started: {msg}",
+            &id[..id.len().min(8)]
+        );
+    }
     app.state::<AppState>()
         .lock()
         .runtime
@@ -82,6 +94,11 @@ fn set_error(app: &AppHandle, id: &str, status: Status, msg: String) {
         .or_insert_with(Runtime::default)
         .error = Some((status, msg));
     ui::refresh(app);
+}
+
+/// `CGM_GLANCE_DEBUG=1` logs each poll's outcome to the terminal, for troubleshooting.
+fn debug_log() -> bool {
+    std::env::var("CGM_GLANCE_DEBUG").is_ok_and(|v| v == "1")
 }
 
 async fn run(app: AppHandle, id: String, mut client: SourceClient) {
@@ -94,6 +111,26 @@ async fn run(app: AppHandle, id: String, mut client: SourceClient) {
             .get(&id)
             .and_then(|r| r.readings.last().map(|r| r.time_ms));
         let result = client.fetch(since).await;
+        if debug_log() {
+            // Counts and ages only: no names, values or credentials in the log.
+            let now = now_ms();
+            match &result {
+                Ok(r) => eprintln!(
+                    "cgm-glance: poll {}: {} readings, newest {} min old",
+                    &id[..id.len().min(8)],
+                    r.len(),
+                    r.iter()
+                        .map(|x| x.time_ms)
+                        .max()
+                        .map_or("-".into(), |t| ((now - t) / 60_000).to_string())
+                ),
+                Err(e) => eprintln!(
+                    "cgm-glance: poll {}: error: {}",
+                    &id[..id.len().min(8)],
+                    e.message()
+                ),
+            }
+        }
         let delay = {
             let state = app.state::<AppState>();
             let mut inner = state.lock();

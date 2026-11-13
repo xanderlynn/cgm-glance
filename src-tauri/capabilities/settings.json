@@ -16,6 +16,8 @@
     "allow-reset-badge-positions",
     "allow-discard-drafts",
     "allow-check-update",
-    "allow-install-update"
+    "allow-install-update",
+    "allow-sign-out",
+    "allow-erase-all-data"
   ]
 }
